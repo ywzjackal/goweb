@@ -11,6 +11,8 @@ import (
 var (
 	TemplateSuffix   = ".html"
 	TemplatePosition = "./templates"
+	DelimsLeft       = "{{"
+	DelimsRight      = "}}"
 	views            = make(map[string]View)
 	rootTemplate     = template.New("")
 )
@@ -19,8 +21,19 @@ func init() {
 	Log.Print("INIT VIEWS...")
 	views["html"] = &viewHtml{}
 	views["json"] = &ViewJson{}
+	views[""] = &view{}
 	//
-	rootTemplate = template.Must(rootTemplate.Delims("{{{", "}}}").ParseGlob(TemplatePosition + "/*"))
+	ReloadTemplates()
+}
+
+func ReloadTemplates() {
+	rootTemplate = template.New("")
+	rootTemplate = template.Must(rootTemplate.Delims(DelimsLeft, DelimsRight).
+		ParseGlob(TemplatePosition + "/*"))
+}
+
+func RegisterView(name string, view View) {
+	views[name] = view
 }
 
 type View interface {
@@ -48,8 +61,8 @@ type ViewJson struct {
 	*view
 }
 
-func (v *view) Render(c Context, name string, args ...interface{}) error {
-	raw := []byte(fmt.Sprintf("%s:% +v", name, args))
+func (v *view) Render(c Context, args ...interface{}) error {
+	raw := []byte(fmt.Sprintf("% +v", args))
 	_, err := c.ResponseWriter().Write(raw)
 	return err
 }
@@ -67,10 +80,20 @@ func (v *viewHtml) Render(c Context, args ...interface{}) error {
 		name = strings.ToLower(c.ControllerName() + "_" + c.ActionName())
 		err  error
 	)
-	if len(args) > 0 && args[0] != nil {
-		rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
-	} else {
-		rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, nil)
+	if Debug {
+		ReloadTemplates()
+	}
+	switch len(args) {
+	case 1:
+		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+	case 2:
+		name, ok := args[1].(string)
+		if !ok {
+			return fmt.Errorf("invalid view template name:%+v,need string", args[1])
+		}
+		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+	default:
+		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, nil)
 	}
 	return err
 }

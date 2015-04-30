@@ -64,11 +64,11 @@ func (c *controllerContainer) Controller(name string) Controller {
 
 func (c *controllerContainer) Call(context Context) error {
 	cname := strings.ToLower(ControllerPrefix + context.ControllerName())
+	aname := strings.ToLower(ActionPrefix + context.ActionName())
 	cwp, ok := c.controllers[cname]
 	if !ok {
 		return errors.New("Controller Not Found:" + cname)
 	}
-	aname := strings.ToLower(ActionPrefix + context.ActionName())
 	awp, ok := cwp.actions[aname]
 	if !ok {
 		return errors.New(cname + " doesn't have " + aname)
@@ -77,19 +77,19 @@ func (c *controllerContainer) Call(context Context) error {
 	case 1:
 	case 2:
 		if err := context.Request().ParseForm(); err != nil {
-			panic("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
+			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
 		}
-		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context.Request().Form)
+		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context)
 	default:
 		if err := context.Request().ParseForm(); err != nil {
-			panic("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
+			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
 		}
-		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context.Request().Form)
+		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context)
 		// Enjection
 		for i, t := range awp.parameterTypes[2:] {
 			factory, err := context.FactoryContainer().Lookup(t, context)
 			if err != nil {
-				panic(fmt.Sprintf("Lookup Fail:`%s`\r\n\t%s", t, err.Error()))
+				return fmt.Errorf("Lookup Fail:`%s`\r\n\t%s", t, err.Error())
 			} else {
 				Log.Printf("Lookup Success:`%s`", t)
 			}

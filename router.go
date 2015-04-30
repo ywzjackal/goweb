@@ -39,13 +39,11 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	//		}
 	//	}()
 	var (
-		begin          = time.Now()
-		path           = req.URL.Path
-		controllerName = ""
-		actionName     = ""
-		array          = strings.Split(path, "/")
-		arrayLen       = len(array)
-		context        = &context{
+		begin    = time.Now()
+		path     = req.URL.Path
+		array    = strings.Split(path, "/")
+		arrayLen = len(array)
+		context  = &context{
 			request:          req,
 			responseWriter:   res,
 			factoryContainer: &r.factoryContainer,
@@ -58,10 +56,10 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			context.actionName = array[2]
 		}
 	}
-	if strings.TrimSpace(controllerName) == "" {
+	if strings.TrimSpace(context.controllerName) == "" {
 		context.controllerName = DefaultControllerName
 	}
-	if strings.TrimSpace(actionName) == "" {
+	if strings.TrimSpace(context.actionName) == "" {
 		context.actionName = DefaultActionName
 	}
 	err = r.Call(context)

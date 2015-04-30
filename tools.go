@@ -4,15 +4,17 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func paramtersFromRequestUrl(paramType reflect.Type, req url.Values) reflect.Value {
-	parameterValuePointer := reflect.Value{}
+func paramtersFromRequestUrl(paramType reflect.Type, context Context) reflect.Value {
+	var (
+		parameterValuePointer = reflect.Value{}
+		req                   = context.Request().Form
+	)
 	if paramType.Kind() != reflect.Ptr {
 		Err.Printf("Controller Method's first Parameter must a pointer of Parameters")
 		return parameterValuePointer
@@ -31,7 +33,7 @@ func paramtersFromRequestUrl(paramType reflect.Type, req url.Values) reflect.Val
 			continue
 		}
 		if !parameterValue.Field(i).CanSet() {
-			Err.Printf("Fail convent url.values to ParametersInterface!\r\nField `%s` can not be set!", field.Name)
+			//Err.Printf("Fail convent url.values to ParametersInterface!\r\nField `%s` can not be set!", field.Name)
 			continue
 		}
 		switch field.Type.Kind() {
@@ -59,6 +61,14 @@ func paramtersFromRequestUrl(paramType reflect.Type, req url.Values) reflect.Val
 				continue
 			}
 			parameterValue.Field(i).SetFloat(f)
+		case reflect.Struct:
+			continue
+		case reflect.Interface, reflect.Ptr:
+			v, e := context.FactoryContainer().Lookup(field.Type, context)
+			if e != nil {
+				continue
+			}
+			parameterValue.Field(i).Set(v)
 		case reflect.Slice:
 			targetType := field.Type.Elem()
 			stringValues := req[field.Name]
