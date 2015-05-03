@@ -75,7 +75,7 @@ func (f *factoryContainer) Init() error {
 func (f *factoryContainer) RegisterFactory(fi interface{}) {
 	t := reflect.TypeOf(fi)
 	v := reflect.ValueOf(fi)
-	_, ok := fi.(*Factory)
+	_, ok := fi.(factoryInterface)
 	if !ok {
 		panic(fmt.Errorf("RegisterFactory must be a Pointer of Factory! got %s",
 			t))
@@ -122,12 +122,22 @@ func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 		return emptyValue, loopTree, e
 	}
 	for _, pre := range loopTree {
-		if pre == rt.Elem().Name() {
-			e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
-			Err.Printf("%s", e)
-			return emptyValue, loopTree, e
+		if rt.Kind() == reflect.Ptr {
+			if pre == rt.Elem().Name() {
+				e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
+				Err.Printf("%s", e)
+				return emptyValue, loopTree, e
+			}
+		}else{
+			if pre == rt.Name() {
+				e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
+				Err.Printf("%s", e)
+				return emptyValue, loopTree, e
+			}
 		}
 	}
+	loopTree = append(loopTree, rt.Name())
+	//
 	extraDependsReflectValue :=
 		make([]reflect.Value, len(depends), len(depends))
 	for i, depend := range depends {
@@ -169,17 +179,15 @@ func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 				if depend.Type().AssignableTo(fv.Type()) {
 					fv.Set(extraDependsReflectValue[j])
 					found = true
-					break
 				}
 			}
 			if !found {
-				factory, err := f.Lookup(fv.Type(), depends...)
+				factory, loopTree, err := f.lookup(loopTree, fv.Type(), depends...)
 				if err != nil {
 					return emptyValue, loopTree, fmt.Errorf(
 						"Can not Enject `%s.%s`,'%s'",
 						valueType, fv, err.Error())
 				}
-				loopTree = append(loopTree, factory.Type().Name())
 				fv.Set(factory)
 			}
 		}
@@ -196,9 +204,14 @@ const (
 
 type FactoryType int
 
+type factoryInterface interface {
+	Type() FactoryType
+}
+
 // Factory is the struct that all the custom factory must be extended
 // 其他自定义工厂必须集成自此结构
 type Factory struct {
+	factoryInterface
 	state FactoryType
 }
 
