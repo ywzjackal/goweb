@@ -113,6 +113,17 @@ func (f *factoryContainer) Lookup(
 
 func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 	depends ...interface{}) (reflect.Value, []string, error) {
+
+	var (
+		rtname                   = rt.Name()
+		extraDependsReflectValue = make([]reflect.Value, len(depends))
+		found                    = false
+		value                    reflect.Value
+		valueType                reflect.Type
+	)
+	if rt.Kind() == reflect.Ptr {
+		rtname = rt.Elem().Name()
+	}
 	if loopTree == nil {
 		loopTree = []string{}
 	}
@@ -122,24 +133,14 @@ func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 		return emptyValue, loopTree, e
 	}
 	for _, pre := range loopTree {
-		if rt.Kind() == reflect.Ptr {
-			if pre == rt.Elem().Name() {
-				e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
-				Err.Printf("%s", e)
-				return emptyValue, loopTree, e
-			}
-		}else{
-			if pre == rt.Name() {
-				e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
-				Err.Printf("%s", e)
-				return emptyValue, loopTree, e
-			}
+		if pre == rtname {
+			e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
+			Err.Printf("%s", e)
+			return emptyValue, loopTree, e
 		}
 	}
-	loopTree = append(loopTree, rt.Name())
+	loopTree = append(loopTree, rtname)
 	//
-	extraDependsReflectValue :=
-		make([]reflect.Value, len(depends), len(depends))
 	for i, depend := range depends {
 		extraDependsReflectValue[i] = reflect.ValueOf(depend)
 		if extraDependsReflectValue[i].Type().AssignableTo(rt) {
@@ -147,16 +148,22 @@ func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 		}
 	}
 	//
-	var (
-		found     = false
-		value     reflect.Value
-		valueType reflect.Type
-	)
 	for _, v := range f.factorys {
-		if v.rv.Type().AssignableTo(rt) {
+		if v.rt.AssignableTo(rt) {
 			found = true
 			value = v.rv
 			valueType = v.rt
+			goto found
+		}
+		for i := 0; i < v.rt.Elem().NumField(); i++ {
+			ft := v.rt.Elem().Field(i)
+			fv := v.rv.Elem().Field(i)
+			if ft.Type.AssignableTo(rt) {
+				found = true
+				value = fv
+				valueType = ft.Type
+				goto found
+			}
 		}
 	}
 	if !found {
@@ -166,33 +173,41 @@ func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
 		f.RegisterFactory(value.Interface())
 	}
 
+found:
 	// Enject Fields
+	if !value.Elem().IsValid() {
+		Err.Printf("%s is invalid!", valueType.Elem().Name())
+		value = reflect.New(valueType.Elem())
+	}
 	for i := 0; i < valueType.Elem().NumField(); i++ {
 		fv := value.Elem().Field(i)
 		if !fv.CanSet() {
 			continue
 		}
-		if fv.Type().Kind() == reflect.Ptr ||
-			fv.Type().Kind() == reflect.Interface {
-			found := false
-			for j, depend := range extraDependsReflectValue {
-				if depend.Type().AssignableTo(fv.Type()) {
-					fv.Set(extraDependsReflectValue[j])
-					found = true
-				}
-			}
-			if !found {
-				factory, loopTree, err := f.lookup(loopTree, fv.Type(), depends...)
-				if err != nil {
-					return emptyValue, loopTree, fmt.Errorf(
-						"Can not Enject `%s.%s`,'%s'",
-						valueType, fv, err.Error())
-				}
-				fv.Set(factory)
+		if fv.Type().Kind() != reflect.Ptr &&
+			fv.Type().Kind() != reflect.Interface {
+			continue
+		}
+		if !fv.IsNil() {
+			continue
+		}
+		found := false
+		for j, depend := range extraDependsReflectValue {
+			if depend.Type().AssignableTo(fv.Type()) {
+				fv.Set(extraDependsReflectValue[j])
+				found = true
 			}
 		}
+		if !found {
+			factory, loopTree, err := f.lookup(loopTree, fv.Type(), depends...)
+			if err != nil {
+				return emptyValue, loopTree, fmt.Errorf(
+					"Can not Enject `%s.%s`,'%s'",
+					valueType, fv, err.Error())
+			}
+			fv.Set(factory)
+		}
 	}
-
 	return value, loopTree, nil
 }
 
@@ -211,7 +226,6 @@ type factoryInterface interface {
 // Factory is the struct that all the custom factory must be extended
 // 其他自定义工厂必须集成自此结构
 type Factory struct {
-	factoryInterface
 	state FactoryType
 }
 

@@ -3,6 +3,7 @@ package goweb
 import (
 	"crypto/sha1"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -10,14 +11,14 @@ import (
 	"time"
 )
 
-func paramtersFromRequestUrl(paramType reflect.Type, context Context) reflect.Value {
+func paramtersFromRequestUrl(paramType reflect.Type, context Context) (reflect.Value, error) {
 	var (
 		parameterValuePointer = reflect.Value{}
 		req                   = context.Request().Form
 	)
 	if paramType.Kind() != reflect.Ptr {
-		Err.Printf("Controller Method's first Parameter must a pointer of Parameters")
-		return parameterValuePointer
+		return parameterValuePointer,
+			fmt.Errorf("Controller Method's first Parameter must a pointer of Parameters")
 	}
 	pt := paramType.Elem()
 	fieldNum := pt.NumField()
@@ -99,7 +100,7 @@ func paramtersFromRequestUrl(paramType reflect.Type, context Context) reflect.Va
 			parameterValue.Field(i).Set(values)
 		}
 	}
-	return parameterValuePointer
+	return parameterValuePointer, nil
 }
 
 func generateSessionIdByRequest(req *http.Request) string {

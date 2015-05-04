@@ -63,6 +63,9 @@ func (c *controllerContainer) Controller(name string) Controller {
 }
 
 func (c *controllerContainer) Call(context Context) error {
+	var (
+		err error
+	)
 	cname := strings.ToLower(ControllerPrefix + context.ControllerName())
 	aname := strings.ToLower(ActionPrefix + context.ActionName())
 	cwp, ok := c.controllers[cname]
@@ -79,12 +82,18 @@ func (c *controllerContainer) Call(context Context) error {
 		if err := context.Request().ParseForm(); err != nil {
 			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
 		}
-		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context)
+		awp.parameters[1], err = paramtersFromRequestUrl(awp.parameterTypes[1], context)
+		if err != nil {
+			return err
+		}
 	default:
 		if err := context.Request().ParseForm(); err != nil {
 			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
 		}
-		awp.parameters[1] = paramtersFromRequestUrl(awp.parameterTypes[1], context)
+		awp.parameters[1], err = paramtersFromRequestUrl(awp.parameterTypes[1], context)
+		if err != nil {
+			return err
+		}
 		// Enjection
 		for i, t := range awp.parameterTypes[2:] {
 			factory, err := context.FactoryContainer().Lookup(t, context)
@@ -97,7 +106,7 @@ func (c *controllerContainer) Call(context Context) error {
 		}
 	}
 	returnValues := awp.method.Func.Call(awp.parameters)
-	err := render(returnValues, context)
+	err = render(returnValues, context)
 	return err
 }
 
