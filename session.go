@@ -16,6 +16,7 @@ type Session interface {
 }
 
 type session struct {
+	FactoryStateful
 	Session
 	Context
 	id string

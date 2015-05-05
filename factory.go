@@ -9,19 +9,25 @@ import (
 // Enjection share on the same factory instance. so be carful for thread-safe
 // 独立状态工厂接口，仅有一个实例存在与系统中，所有注入共享一个实例，所以必要时应该考虑线程
 // 安全。
-type FactoryStandalone interface{}
+type FactoryStandalone struct{}
 
 // FactoryStateful is stateful for user in session. each session has the one
 // and only instance for itself, no shared, and will auto destroy when
 // session timeout or be destroyed.
 // 有状态工厂接口，面向用户的有状态工厂，每个会话（SESSION）包含一个与众不同的实例，不共
 // 享，当会话（SESSION）超时或摧毁时包含的有状态的工厂也将被自动摧毁
-type FactoryStateful interface{}
+type FactoryStateful struct{}
 
 // FactoryStateless is stateless for user in session. Enjection will allways
 // create a new factory instance for using.
 // 无状态工厂接口，面向用户无状态，每次注入（Enject）将创建一个新的实例以供调用。
-type FactoryStateless interface{}
+type FactoryStateless struct {
+	context Context
+}
+
+func (f FactoryStateless) Context() Context {
+	return f.context
+}
 
 // FactoryContainer is the container interface of factorys
 type FactoryContainer interface {
@@ -30,10 +36,10 @@ type FactoryContainer interface {
 	// 		fc := &FactoryContainerStruct{}
 	// 		fc.Init() //！！Must be called after created！！
 	// 初始化，当工厂容器被创建后，必须马上使用本函数初始化
-	Init() error
+	Init() WebError
 	// RegisterFactory will register a new factory for Lookup later.
 	// 注册工厂，以供以后查询（Lookup）使用
-	RegisterFactory(interface{})
+	RegisterFactory(interface{}) WebError
 	// Lookup factory by type from this container or depends and return it.
 	// Lookup also enject Ptr or Interface fields which is Exported and
 	// Setable for the factory be looking up.
@@ -51,13 +57,20 @@ type FactoryContainer interface {
 	// 对于有状态工厂，Lookup将先从会话中查找，如果没有将创建一个新的工厂实例并添加到会话
 	// 中，以供以后的使用。
 	// 对于无状态工厂，Lookup始终返回一个刚被新创建的实例。
-	Lookup(rt reflect.Type, depends ...interface{}) (reflect.Value, error)
+	Lookup(rt reflect.Type, context Context) (reflect.Value, WebError)
 }
 
 type factoryWrap struct {
-	value interface{}
-	rt    reflect.Type
-	rv    reflect.Value
+	value        interface{}     // store interface
+	rt           reflect.Type    // store reflect.type, not pointer or interface
+	rv           reflect.Value   // store reflect.value,not pointer or interface
+	state        FactoryType     // FactoryTypeStandalone/FactoryTypeStateful/FactoryTypeStateless
+	initArgs     []reflect.Value // store factory init_auto paramters reflect.value
+	initArgsType []reflect.Type  // store factory init_auto paramters reflect.type
+	aifm         *reflect.Method // store auto init function method pointer
+	injectsSa    []reflect.Value // fields whose need be inject @Standalone
+	injectsSl    []reflect.Value // fields whose need be inject @Standless
+	injectsSf    []reflect.Value // fields whose need be inject @Standful
 }
 
 type factoryContainer struct {
@@ -65,18 +78,16 @@ type factoryContainer struct {
 	factorys []*factoryWrap
 }
 
-func (f *factoryContainer) Init() error {
+func (f *factoryContainer) Init() WebError {
 	Log.Printf("INIT FC...")
 	f.factorys = make([]*factoryWrap, 0)
-	f.RegisterFactory(&Factory{})
 	return nil
 }
 
-func (f *factoryContainer) RegisterFactory(fi interface{}) {
+func (f *factoryContainer) RegisterFactory3(fi interface{}) {
 	t := reflect.TypeOf(fi)
 	v := reflect.ValueOf(fi)
-	_, ok := fi.(factoryInterface)
-	if !ok {
+	if t.Kind() != reflect.Ptr {
 		panic(fmt.Errorf("RegisterFactory must be a Pointer of Factory! got %s",
 			t))
 		return
@@ -101,134 +112,136 @@ func (f *factoryContainer) RegisterFactory(fi interface{}) {
 
 var emptyValue = reflect.ValueOf(0)
 
-func (f *factoryContainer) Lookup(
-	rt reflect.Type, depends ...interface{}) (reflect.Value, error) {
+func (f *factoryContainer) Lookup3(
+	rt reflect.Type, context Context) (reflect.Value, WebError) {
 	if rt.Kind() == reflect.Ptr || rt.Kind() == reflect.Interface {
-		v, _, e := f.lookup(nil, rt, depends...)
+		v, _, e := f.lookup(nil, rt, context)
 		return v, e
 	}
 	return emptyValue,
-		fmt.Errorf("Lookup %s use %s, except Pointer or Interface!", rt, rt.Kind())
+		NewWebError(1, fmt.Sprintf("Lookup %s use %s, except Pointer or Interface!", rt, rt.Kind()), nil)
 }
 
 func (f *factoryContainer) lookup(loopTree []string, rt reflect.Type,
-	depends ...interface{}) (reflect.Value, []string, error) {
-
+	depends ...interface{}) (reflect.Value, []string, WebError) {
 	var (
-		rtname                   = rt.Name()
-		extraDependsReflectValue = make([]reflect.Value, len(depends))
-		found                    = false
-		value                    reflect.Value
-		valueType                reflect.Type
+		value         reflect.Value                         // target reflect.value
+		valueType     reflect.Type                          // target reflect.type
+		rtname        = rt.Name()                           // type name
+		dependstValue = make([]reflect.Value, len(depends)) // depends reflect.value
 	)
+	// if rt is a pointer, rt.elem.name is the real name
+	// else(interface) use rt.name
 	if rt.Kind() == reflect.Ptr {
 		rtname = rt.Elem().Name()
 	}
+	// inject loop initial
 	if loopTree == nil {
 		loopTree = []string{}
 	}
+	// set max to 100 deep of loop tree
 	if len(loopTree) > 100 {
-		e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
-		Err.Printf("%s", e)
-		return emptyValue, loopTree, e
+		return emptyValue, loopTree, NewWebError(1,
+			fmt.Sprintf("Enjection may Deadloop!:%s", loopTree), nil)
 	}
+	// check deadloop
 	for _, pre := range loopTree {
 		if pre == rtname {
-			e := fmt.Errorf("Enjection Deadloop!:%s", loopTree)
-			Err.Printf("%s", e)
-			return emptyValue, loopTree, e
+			return emptyValue, loopTree, NewWebError(1,
+				fmt.Sprintf("Enjection may Deadloop!:%s", loopTree), nil)
 		}
 	}
+	// append current value to looptree
 	loopTree = append(loopTree, rtname)
-	//
+	// Decompression reflect.value from depends to dependstValue
+	// and try inject from depends before factory container
 	for i, depend := range depends {
-		extraDependsReflectValue[i] = reflect.ValueOf(depend)
-		if extraDependsReflectValue[i].Type().AssignableTo(rt) {
-			return extraDependsReflectValue[i], loopTree, nil
+		dependstValue[i] = reflect.ValueOf(depend)
+		if dependstValue[i].Type().AssignableTo(rt) {
+			return dependstValue[i], loopTree, nil
 		}
 	}
-	//
+	// if not found in depends, now try from factory container
 	for _, v := range f.factorys {
+		// try if container's element can assignable to target
 		if v.rt.AssignableTo(rt) {
-			found = true
 			value = v.rv
 			valueType = v.rt
 			goto found
 		}
+		// if element not assignable to target,
+		// try element's anonymous fields (derivative)
 		for i := 0; i < v.rt.Elem().NumField(); i++ {
 			ft := v.rt.Elem().Field(i)
 			fv := v.rv.Elem().Field(i)
-			if ft.Type.AssignableTo(rt) {
-				found = true
+			if ft.Anonymous && ft.Type.AssignableTo(rt) {
 				value = fv
 				valueType = ft.Type
 				goto found
 			}
 		}
 	}
-	if !found {
-		Err.Printf("Not found `%s` in Container! Auto register without initial!", rt)
-		value = reflect.New(rt.Elem())
-		valueType = rt
-		f.RegisterFactory(value.Interface())
-	}
+	// not found target from depends and factory container, now we have to
+	// create a new one
+	Err.Printf("Not found `%s` in Container! Auto register without initial!", rt)
+	value = reflect.New(rt.Elem())
+	valueType = rt
+	f.RegisterFactory(value.Interface())
 
 found:
-	// Enject Fields
 	if !value.Elem().IsValid() {
 		Err.Printf("%s is invalid!", valueType.Elem().Name())
 		value = reflect.New(valueType.Elem())
 	}
+	// now value and valueType of target is ready, try initailization it
 	for i := 0; i < valueType.Elem().NumField(); i++ {
 		fv := value.Elem().Field(i)
+		ft := valueType.Elem().Field(i)
+		// igno anonymous fields
+		if ft.Anonymous {
+			continue
+		}
+		// igno private fields
 		if !fv.CanSet() {
 			continue
 		}
+		// igno fields if they are not Pointer or Interface
 		if fv.Type().Kind() != reflect.Ptr &&
 			fv.Type().Kind() != reflect.Interface {
 			continue
 		}
+		// if they already not nil, why we reinitialization it?
 		if !fv.IsNil() {
 			continue
 		}
-		found := false
-		for j, depend := range extraDependsReflectValue {
+		// try inject from depends first
+		for j, depend := range dependstValue {
 			if depend.Type().AssignableTo(fv.Type()) {
-				fv.Set(extraDependsReflectValue[j])
-				found = true
+				fv.Set(dependstValue[j])
+				goto foundfromdepends
 			}
 		}
-		if !found {
-			factory, loopTree, err := f.lookup(loopTree, fv.Type(), depends...)
+		{
+			// and if not found, try inject from factory container
+			factory, loopTree, err := f.lookup(loopTree, fv.Type())
 			if err != nil {
-				return emptyValue, loopTree, fmt.Errorf(
-					"Can not Enject `%s.%s`,'%s'",
-					valueType, fv, err.Error())
+				return emptyValue, loopTree,
+					NewWebError(1, fmt.Sprintf("Can not Enject `%s.%s`,'%s'",
+						valueType, fv, err.Error()), nil)
 			}
 			fv.Set(factory)
 		}
+	foundfromdepends:
+		continue
 	}
 	return value, loopTree, nil
 }
 
 const (
-	FactoryTypeStandalone = iota
+	FactoryTypeStateless = iota
+	FactoryTypeStandalone
 	FactoryTypeStateful
-	FactoryTypeStateless
+	FactoryTypeError
 )
 
 type FactoryType int
-
-type factoryInterface interface {
-	Type() FactoryType
-}
-
-// Factory is the struct that all the custom factory must be extended
-// 其他自定义工厂必须集成自此结构
-type Factory struct {
-	state FactoryType
-}
-
-func (f *Factory) Type() FactoryType {
-	return f.state
-}

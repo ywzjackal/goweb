@@ -1,7 +1,6 @@
 package goweb
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -32,9 +31,9 @@ type controller struct {
 }
 
 type ControllerContainer interface {
-	RegisterController(string, Controller)
+	RegisterController(Controller)
 	Controller(string) Controller
-	Call(Context) error
+	Call(Context) WebError
 }
 
 type controllerContainer struct {
@@ -42,11 +41,11 @@ type controllerContainer struct {
 	controllers map[string]*controllerWrap
 }
 
-func (c *controllerContainer) RegisterController(name string, ci Controller) {
+func (c *controllerContainer) RegisterController(ci Controller) {
 	if c.controllers == nil {
 		c.controllers = make(map[string]*controllerWrap)
 	}
-	cw := initControllerWrap(name, ci)
+	cw := initControllerWrap(ci)
 	Log.Println("Register Controller `" + cw.name + "`")
 	c.controllers[cw.name] = cw
 }
@@ -62,7 +61,7 @@ func (c *controllerContainer) Controller(name string) Controller {
 	return nil
 }
 
-func (c *controllerContainer) Call(context Context) error {
+func (c *controllerContainer) Call(context Context) WebError {
 	var (
 		err error
 	)
@@ -70,35 +69,36 @@ func (c *controllerContainer) Call(context Context) error {
 	aname := strings.ToLower(ActionPrefix + context.ActionName())
 	cwp, ok := c.controllers[cname]
 	if !ok {
-		return errors.New("Controller Not Found:" + cname)
+		return NewWebError(404, "Controller Not Found:"+cname, nil)
 	}
 	awp, ok := cwp.actions[aname]
 	if !ok {
-		return errors.New(cname + " doesn't have " + aname)
+		return NewWebError(404, cname+" doesn't have "+aname, nil)
 	}
 	switch len(awp.parameters) {
 	case 1:
 	case 2:
 		if err := context.Request().ParseForm(); err != nil {
-			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
+			return NewWebError(505,
+				"Fail to convent http.request to ParametersInterface!\r\n", NewWebError(1, err.Error(), nil))
 		}
 		awp.parameters[1], err = paramtersFromRequestUrl(awp.parameterTypes[1], context)
 		if err != nil {
-			return err
+			return NewWebError(505, err.Error(), nil)
 		}
 	default:
 		if err := context.Request().ParseForm(); err != nil {
-			return fmt.Errorf("Fail to convent http.request to ParametersInterface!\r\n" + err.Error())
+			return NewWebError(505, "Fail to convent http.request to ParametersInterface!", NewWebError(1, err.Error(), nil))
 		}
 		awp.parameters[1], err = paramtersFromRequestUrl(awp.parameterTypes[1], context)
 		if err != nil {
-			return err
+			return NewWebError(505, err.Error(), nil)
 		}
 		// Enjection
 		for i, t := range awp.parameterTypes[2:] {
 			factory, err := context.FactoryContainer().Lookup(t, context)
 			if err != nil {
-				return fmt.Errorf("Lookup Fail:`%s`\r\n\t%s", t, err.Error())
+				return NewWebError(505, fmt.Sprintf("Lookup Fail:`%s`\r\n\t%s", t, err.Error()), nil)
 			} else {
 				Log.Printf("Lookup Success:`%s`", t)
 			}
@@ -107,7 +107,10 @@ func (c *controllerContainer) Call(context Context) error {
 	}
 	returnValues := awp.method.Func.Call(awp.parameters)
 	err = render(returnValues, context)
-	return err
+	if err != nil {
+		return NewWebError(505, err.Error(), nil)
+	}
+	return nil
 }
 
 func render(rets []reflect.Value, c Context) error {

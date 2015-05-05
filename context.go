@@ -10,18 +10,17 @@ type Context interface {
 	FactoryContainer() FactoryContainer
 	ControllerName() string
 	ActionName() string
-	Title() string
 	SetTitle(string)
 }
 
 type context struct {
+	FactoryStateless
 	Context
 	request          *http.Request
 	responseWriter   http.ResponseWriter
 	factoryContainer FactoryContainer
 	controllerName   string
 	actionName       string
-	title            string
 }
 
 func (c *context) Request() *http.Request {
@@ -42,12 +41,4 @@ func (c *context) ControllerName() string {
 
 func (c *context) ActionName() string {
 	return c.actionName
-}
-
-func (c *context) SetTitle(title string) {
-	c.title = title
-}
-
-func (c *context) Title() string {
-	return c.title
 }

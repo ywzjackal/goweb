@@ -28,7 +28,7 @@ type router struct {
 	controllers map[string]Controller
 }
 
-func (r *router) Init() error {
+func (r *router) Init() WebError {
 	return r.factoryContainer.Init()
 }
 
@@ -48,7 +48,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			responseWriter:   res,
 			factoryContainer: &r.factoryContainer,
 		}
-		err error
+		err WebError
 	)
 	if arrayLen > 1 {
 		context.controllerName = strings.ToLower(array[1])
@@ -64,8 +64,8 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 	err = r.Call(context)
 	if err != nil {
-		//		res.WriteHeader(505)
-		res.Write([]byte(err.Error()))
+		res.WriteHeader(err.Code())
+		res.Write([]byte(err.ErrorAllText()))
 	}
 
 	if Debug {

@@ -64,12 +64,6 @@ func paramtersFromRequestUrl(paramType reflect.Type, context Context) (reflect.V
 			parameterValue.Field(i).SetFloat(f)
 		case reflect.Struct:
 			continue
-		case reflect.Interface, reflect.Ptr:
-			v, e := context.FactoryContainer().Lookup(field.Type, context)
-			if e != nil {
-				continue
-			}
-			parameterValue.Field(i).Set(v)
 		case reflect.Slice:
 			targetType := field.Type.Elem()
 			stringValues := req[field.Name]
@@ -98,6 +92,12 @@ func paramtersFromRequestUrl(paramType reflect.Type, context Context) (reflect.V
 				}
 			}
 			parameterValue.Field(i).Set(values)
+		case reflect.Interface, reflect.Ptr:
+			v, e := context.FactoryContainer().Lookup(field.Type, context)
+			if e != nil {
+				return parameterValuePointer, e
+			}
+			parameterValue.Field(i).Set(v)
 		}
 	}
 	return parameterValuePointer, nil
@@ -129,14 +129,12 @@ func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *ac
 	return aw
 }
 
-func initControllerWrap(name string, c Controller) *controllerWrap {
-	v := reflect.ValueOf(c)
-	t := reflect.TypeOf(c)
-	if name == "" {
+func initControllerWrap(c Controller) *controllerWrap {
+	var (
+		v    = reflect.ValueOf(c)
+		t    = reflect.TypeOf(c)
 		name = t.Elem().Name()
-	} else {
-		name = ControllerPrefix + name
-	}
+	)
 	wrap := &controllerWrap{
 		controllerName: t.Name(),
 		name:           strings.ToLower(name),
@@ -148,9 +146,9 @@ func initControllerWrap(name string, c Controller) *controllerWrap {
 		if strings.HasPrefix(m.Name, ActionPrefix) {
 			aw := initActionWrap(i, &m, v)
 			wrap.actions[aw.name] = aw
-			Log.Printf("Init `%s` : `%s`", wrap.name, m.Name)
+			//			Log.Printf("Init `%s` : `%s`", wrap.name, m.Name)
 		} else {
-			Log.Printf("Igno `%s` : `%s`", wrap.name, m.Name)
+			//			Log.Printf("Igno `%s` : `%s`", wrap.name, m.Name)
 		}
 	}
 	return wrap
