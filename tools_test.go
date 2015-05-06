@@ -25,7 +25,7 @@ func Test_ParamtersFromRequestUrl(t *testing.T) {
 		return
 	}
 	values := u.Query()
-	result := paramtersFromRequestUrl(reflect.TypeOf(&TestCCM{}), values).Interface()
+	result := lookupAndInjectFromContext(reflect.TypeOf(&TestCCM{}), values).Interface()
 	if rt, ok := result.(*TestCCM); ok {
 		t.Logf("RT:% +v", rt)
 		if rt.B != true || len(rt.Bs) != 2 || rt.Bs[0] != true || rt.Bs[1] != false {

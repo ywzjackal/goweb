@@ -3,7 +3,6 @@ package goweb
 import (
 	"crypto/sha1"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -11,14 +10,26 @@ import (
 	"time"
 )
 
-func paramtersFromRequestUrl(paramType reflect.Type, context Context) (reflect.Value, error) {
+func lookupAndInject(typs []reflect.Type, ctx Context) ([]reflect.Value, WebError) {
+	rts := make([]reflect.Value, len(typs))
+	for i, typ := range typs {
+		_v, _e := ctx.FactoryContainer().Lookup(typ, ctx)
+		if _e != nil {
+			return nil, _e.Append(500, "Fail to inject `%s`", typ)
+		}
+		rts[i] = _v
+	}
+	return rts, nil
+}
+
+func lookupAndInjectFromContext(paramType reflect.Type, context Context) (reflect.Value, WebError) {
 	var (
 		parameterValuePointer = reflect.Value{}
 		req                   = context.Request().Form
 	)
 	if paramType.Kind() != reflect.Ptr {
 		return parameterValuePointer,
-			fmt.Errorf("Controller Method's first Parameter must a pointer of Parameters")
+			NewWebError(1, "Controller Method's first Parameter must a pointer of Parameters")
 	}
 	pt := paramType.Elem()
 	fieldNum := pt.NumField()
@@ -119,11 +130,11 @@ func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *ac
 		method:         method,
 		parameters:     make([]reflect.Value, method.Type.NumIn()),
 		parameterTypes: make([]reflect.Type, method.Type.NumIn()),
+		context:        reflect.Value{},
 	}
 	for i := 0; i < method.Type.NumIn(); i++ {
 		t := method.Type.In(i)
 		aw.parameterTypes[i] = t
-		//		Log.Printf("%+v", t)
 	}
 	aw.parameters[0] = caller
 	return aw

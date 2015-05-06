@@ -1,9 +1,6 @@
 package goweb
 
-import (
-	"fmt"
-	"reflect"
-)
+import "reflect"
 
 const (
 	FactoryAutoInitFuncName = "init_auto"
@@ -15,26 +12,26 @@ func (f *factoryContainer) RegisterFactory(fi interface{}) WebError {
 		err WebError = nil
 	)
 	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
-		return NewWebError(1, fmt.Sprintf("RegisterFactory must be a Pointer of struct(*struct)! got %s", t), nil)
+		return NewWebError(1, "RegisterFactory must be a Pointer of struct(*struct)! got %s", t)
 	}
 	if t.Elem().Kind() != reflect.Struct {
-		return NewWebError(1, fmt.Sprintf("RegisterFactory must be a Pointer of struct(*struct)! got %s(*%s)", t, t.Elem().Kind()), nil)
+		return NewWebError(1, "RegisterFactory must be a Pointer of struct(*struct)! got %s(*%s)", t, t.Elem().Kind())
 	}
 	for _, _w := range f.factorys {
 		if _w.value == fi {
-			return NewWebError(1, fmt.Sprintf("Resigter `%s` duclicate!", fi), nil)
+			return NewWebError(1, "Resigter `%s` duclicate!", fi)
 		}
 	}
 	wrap := newFactoryWrap(fi)
 	if wrap == nil {
-		return NewWebError(1, fmt.Sprintf("RegisterFactory must be a Pointer of Factory! got %s", t), nil)
+		return NewWebError(1, "RegisterFactory must be a Pointer of Factory! got %s", t)
 	}
 	err = f.factoryInitilazion(&wrap.rv, wrap, nil)
 	if err != nil {
-		return NewWebError(1, err.Error(), nil)
+		return err.Append(1, "Fail to RegisterFactory `%s`", wrap.rt)
 	}
 	f.factorys = append(f.factorys, wrap)
-	return err
+	return nil
 }
 
 func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Value, WebError) {
@@ -60,7 +57,7 @@ func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Val
 		// auto register this factory
 		err = f.RegisterFactory(reflect.New(rt).Interface())
 		if err != nil {
-			return target, NewWebError(1, fmt.Sprintf("register `%s` fail!%s", t.Name(), err.Error()), nil)
+			return target, err.Append(1, "register `%s` fail!", t.Name())
 		}
 	}
 	switch tw.state {
@@ -74,7 +71,7 @@ func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Val
 		target = reflect.New(tw.rt)
 		err = f.factoryInitilazion(&target, tw, context)
 		if err != nil {
-			return target, err
+			return target, err.Append(1, "Fail to initilazion `%s`", target.Type())
 		}
 	}
 	err = f.factoryInitilazion(&target, tw, context)
@@ -158,21 +155,21 @@ func (f *factoryContainer) factoryInitilazion(fv *reflect.Value, fw *factoryWrap
 		for i, t := range fw.initArgsType[1:] {
 			fw.initArgs[i+1], err = f.Lookup(t, context)
 			if err != nil {
-				return err
+				return err.Append(1, "Fail to lookup `%s`", t)
 			}
 		}
 		airt = fw.aifm.Func.Call(fw.initArgs)
 		if len(airt) == 1 {
 			err, b = airt[0].Interface().(WebError)
 			if b && err != nil {
-				return err
+				return err.Append(1, "Fail to Call init func,factory:'%s'", fw.rt)
 			}
 		}
 	}
 	for _, v := range fw.injectsSa {
 		v, err = f.Lookup(v.Type(), context)
 		if err != nil {
-			return err
+			return err.Append(1, "Fail to inject `%s`'s `%s`", fw.rt, v.Type())
 		}
 	}
 	//

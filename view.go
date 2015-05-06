@@ -37,7 +37,7 @@ func RegisterView(name string, view View) {
 }
 
 type View interface {
-	Render(Context, ...interface{}) error
+	Render(Context, ...interface{}) WebError
 	ResponseWriter() http.ResponseWriter
 }
 
@@ -61,10 +61,10 @@ type ViewJson struct {
 	*view
 }
 
-func (v *view) Render(c Context, args ...interface{}) error {
+func (v *view) Render(c Context, args ...interface{}) WebError {
 	raw := []byte(fmt.Sprintf("% +v", args))
 	_, err := c.ResponseWriter().Write(raw)
-	return err
+	return NewWebError(1, err.Error())
 }
 
 func (v *view) ResponseWriter() http.ResponseWriter {
@@ -75,43 +75,51 @@ func (v *viewHtml) Request() *http.Request {
 	return v.req
 }
 
-func (v *viewHtml) Render(c Context, args ...interface{}) error {
+func (v *viewHtml) Render(c Context, args ...interface{}) WebError {
 	var (
-		name = strings.ToLower(c.ControllerName() + "_" + c.ActionName())
-		err  error
+		name          = strings.ToLower(c.ControllerName() + "_" + c.ActionName())
+		err  WebError = nil
 	)
 	if Debug {
 		ReloadTemplates()
 	}
 	switch len(args) {
 	case 1:
-		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		if e != nil {
+			err = NewWebError(1, e.Error())
+		}
 	case 2:
 		name, ok := args[1].(string)
 		if !ok {
-			return fmt.Errorf("invalid view template name:%+v,need string", args[1])
+			return NewWebError(1, "invalid view template name:%+v,need string", args[1])
 		}
-		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		if e != nil {
+			err = NewWebError(1, e.Error())
+		}
 	default:
-		err = rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, nil)
+		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, nil)
+		if e != nil {
+			err = NewWebError(1, e.Error())
+		}
 	}
 	return err
 }
 
-func (v *ViewJson) Render(c Context, args ...interface{}) error {
-	var err error
+func (v *ViewJson) Render(c Context, args ...interface{}) WebError {
 	if len(args) == 1 {
 		b, err := json.MarshalIndent(args[0], "", " ")
 		if err != nil {
-			return err
+			return NewWebError(1, err.Error())
 		}
 		_, err = c.ResponseWriter().Write(b)
 	} else {
 		b, err := json.MarshalIndent(args, "", " ")
 		if err != nil {
-			return err
+			return NewWebError(1, err.Error())
 		}
 		_, err = c.ResponseWriter().Write(b)
 	}
-	return err
+	return nil
 }
