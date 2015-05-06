@@ -1,6 +1,7 @@
 package goweb
 
 import (
+	"net/http"
 	"net/url"
 	"reflect"
 	"testing"
@@ -24,9 +25,13 @@ func Test_ParamtersFromRequestUrl(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	values := u.Query()
-	result := lookupAndInjectFromContext(reflect.TypeOf(&TestCCM{}), values).Interface()
-	if rt, ok := result.(*TestCCM); ok {
+	req := &http.Request{
+		URL: u,
+	}
+	value, err := lookupAndInjectFromContext(reflect.TypeOf(&TestCCM{}), &context{
+		request: req,
+	})
+	if rt, ok := value.Interface().(*TestCCM); ok {
 		t.Logf("RT:% +v", rt)
 		if rt.B != true || len(rt.Bs) != 2 || rt.Bs[0] != true || rt.Bs[1] != false {
 			t.Error("Fail to parse bool(s) value!")

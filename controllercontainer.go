@@ -59,7 +59,7 @@ func (c *controllerContainer) Call(ctx Context) WebError {
 	if !ok {
 		return NewWebError(404, cname+" doesn't have "+aname)
 	}
-	callParams, err = lookupAndInject(awp.parameterTypes, ctx)
+	callParams, err = lookupAndInjectFactories(awp.parameterTypes[1:], ctx)
 	if err != nil {
 		return err.Append(500, "Fail to Call %s:%s", cname, aname)
 	}

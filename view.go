@@ -10,7 +10,7 @@ import (
 
 var (
 	TemplateSuffix   = ".html"
-	TemplatePosition = "./templates"
+	TemplatePosition = "undefined!" //"./templates"
 	DelimsLeft       = "{{"
 	DelimsRight      = "}}"
 	views            = make(map[string]View)
@@ -27,6 +27,9 @@ func init() {
 }
 
 func ReloadTemplates() {
+	if TemplatePosition == "undefined!" {
+		return
+	}
 	rootTemplate = template.New("")
 	rootTemplate = template.Must(rootTemplate.Delims(DelimsLeft, DelimsRight).
 		ParseGlob(TemplatePosition + "/*"))

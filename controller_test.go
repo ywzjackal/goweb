@@ -19,7 +19,7 @@ var (
 )
 
 type FactoryCounter struct {
-	*Factory
+	FactoryStandalone
 	count int
 }
 
@@ -45,7 +45,7 @@ func (f *ControllerCounter) ActionDefault(
 func startWsServer() {
 	router := &router{}
 	router.Init()
-	router.RegisterController("", &ControllerCounter{})
+	router.RegisterController(&ControllerCounter{})
 	router.RegisterFactory(&FactoryCounter{})
 	httpserver = httptest.NewServer(nil)
 	serverAddr = httpserver.Listener.Addr().String()

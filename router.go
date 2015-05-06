@@ -34,11 +34,6 @@ func (r *router) Init() WebError {
 }
 
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	//	defer func() {
-	//		if r := recover(); r != nil {
-	//			res.Write([]byte(fmt.Sprintf("%s", r)))
-	//		}
-	//	}()
 	var (
 		begin    = time.Now()
 		path     = req.URL.Path

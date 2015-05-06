@@ -11,11 +11,8 @@ func (f *factoryContainer) RegisterFactory(fi interface{}) WebError {
 		t            = reflect.TypeOf(fi) // reflect.type
 		err WebError = nil
 	)
-	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
-		return NewWebError(1, "RegisterFactory must be a Pointer of struct(*struct)! got %s", t)
-	}
-	if t.Elem().Kind() != reflect.Struct {
-		return NewWebError(1, "RegisterFactory must be a Pointer of struct(*struct)! got %s(*%s)", t, t.Elem().Kind())
+	if err = isTypeRegisterAble(t); err != nil {
+		return err.Append(500, "RegisterFactory must be a Pointer of struct:(*struct)!")
 	}
 	for _, _w := range f.factorys {
 		if _w.value == fi {
@@ -34,15 +31,58 @@ func (f *factoryContainer) RegisterFactory(fi interface{}) WebError {
 	return nil
 }
 
-func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Value, WebError) {
+func (f *factoryContainer) lookupWithoutAutoRegister(rt reflect.Type, ctx Context) (reflect.Value, WebError) {
 	var (
 		tw     *factoryWrap  = nil   // tw:targetWrap
 		iaec   bool          = false // is auto init func exist in container
 		err    WebError      = nil   // error
 		target reflect.Value         // target which we are looking for
 	)
+	if err = isTypeLookupAble(rt); err != nil {
+		return target, err.Append(500, "Fail to lookup '%s'", rt)
+	}
 	for _, _w := range f.factorys {
-		if _w.rt == rt {
+		if _w.rt.AssignableTo(rt) {
+			//		if _w.rt == rt {
+			tw = _w
+			break
+		}
+	}
+	// check if factory which we are looking for is not exist in container.
+	if !iaec {
+		return target, NewWebError(500, "Not found factory:%s", rt)
+	}
+	switch tw.state {
+	case FactoryTypeStateful:
+		// inject from client session, if not found register new to session
+	case FactoryTypeStandalone:
+		// inject from factory container
+		target = tw.rv
+	case FactoryTypeStateless:
+		// crate a new factory for target every times
+		target = reflect.New(tw.rt)
+		err = f.factoryInitilazion(&target, tw, ctx)
+		if err != nil {
+			return target, err.Append(1, "Fail to initilazion `%s`", target.Type())
+		}
+	}
+	err = f.factoryInitilazion(&target, tw, ctx)
+	return target, err
+}
+
+func (f *factoryContainer) Lookup(rt reflect.Type, ctx Context) (reflect.Value, WebError) {
+	var (
+		tw     *factoryWrap  = nil   // tw:targetWrap
+		iaec   bool          = false // is auto init func exist in container
+		err    WebError      = nil   // error
+		target reflect.Value         // target which we are looking for
+	)
+	if err = isTypeLookupAble(rt); err != nil {
+		return target, err.Append(500, "Fail to lookup '%s'", rt)
+	}
+	for _, _w := range f.factorys {
+		if _w.rt.AssignableTo(rt) {
+			//		if _w.rt == rt {
 			tw = _w
 			break
 		}
@@ -55,9 +95,13 @@ func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Val
 		}
 		Log.Printf("`%s` doesn't exist in factory container, auto register and initialization", t.Name())
 		// auto register this factory
-		err = f.RegisterFactory(reflect.New(rt).Interface())
+		err = f.RegisterFactory(reflect.New(t).Interface())
 		if err != nil {
 			return target, err.Append(1, "register `%s` fail!", t.Name())
+		}
+		target, err = f.lookupWithoutAutoRegister(rt, ctx)
+		if err != nil {
+			return target, err.Append(500, "Fail to auto register factory `%s`", target)
 		}
 	}
 	switch tw.state {
@@ -69,12 +113,12 @@ func (f *factoryContainer) Lookup(rt reflect.Type, context Context) (reflect.Val
 	case FactoryTypeStateless:
 		// crate a new factory for target every times
 		target = reflect.New(tw.rt)
-		err = f.factoryInitilazion(&target, tw, context)
+		err = f.factoryInitilazion(&target, tw, ctx)
 		if err != nil {
 			return target, err.Append(1, "Fail to initilazion `%s`", target.Type())
 		}
 	}
-	err = f.factoryInitilazion(&target, tw, context)
+	err = f.factoryInitilazion(&target, tw, ctx)
 	return target, err
 }
 

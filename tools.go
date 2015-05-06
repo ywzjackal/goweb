@@ -10,7 +10,38 @@ import (
 	"time"
 )
 
-func lookupAndInject(typs []reflect.Type, ctx Context) ([]reflect.Value, WebError) {
+func isTypeLookupAble(rt reflect.Type) WebError {
+	if rt.Kind() == reflect.Interface {
+		return nil
+	}
+	if rt.Kind() == reflect.Ptr && rt.Elem().Kind() == reflect.Struct {
+		return nil
+	}
+	typstr := ""
+	_rt := rt
+	for _rt.Kind() == reflect.Ptr {
+		typstr = typstr + "*"
+		_rt = _rt.Elem()
+	}
+	typstr = typstr + _rt.Kind().String()
+	return NewWebError(500, "`%s(%s)` is not a interface or *struct", rt, typstr)
+}
+
+func isTypeRegisterAble(rt reflect.Type) WebError {
+	if rt.Kind() == reflect.Ptr && rt.Elem().Kind() == reflect.Struct {
+		return nil
+	}
+	typstr := ""
+	_rt := rt
+	for _rt.Kind() == reflect.Ptr {
+		typstr = typstr + "*"
+		_rt = _rt.Elem()
+	}
+	typstr = typstr + _rt.Kind().String()
+	return NewWebError(500, "`%s(%s)` is not a *struct", rt, typstr)
+}
+
+func lookupAndInjectFactories(typs []reflect.Type, ctx Context) ([]reflect.Value, WebError) {
 	rts := make([]reflect.Value, len(typs))
 	for i, typ := range typs {
 		_v, _e := ctx.FactoryContainer().Lookup(typ, ctx)
