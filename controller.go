@@ -28,7 +28,7 @@ func (c *controller) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 }
 
-func render(rets []reflect.Value, c Context) WebError {
+func render(rets []reflect.Value, c Controller2) WebError {
 	if len(rets) == 0 {
 		return NewWebError(1, "Controller Action need return a ViewType like `html`,`json`.")
 	}
@@ -44,5 +44,9 @@ func render(rets []reflect.Value, c Context) WebError {
 	for i, ret := range rets[1:] {
 		interfaces[i] = ret.Interface()
 	}
-	return view.Render(c, interfaces...)
+	err := view.Render(c, interfaces...)
+	if err != nil {
+		return err.Append(500, "Fail to render view %s, data:%+v", viewType, interfaces)
+	}
+	return nil
 }

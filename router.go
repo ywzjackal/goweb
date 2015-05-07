@@ -41,12 +41,12 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var (
 		begin     = time.Now()
 		urlprefix = strings.ToLower(req.URL.Path)
-		ctl       = r.controllers.Get(urlprefix)
 		ctx       = &context{
 			request:          req,
 			responseWriter:   res,
 			factoryContainer: &r.factoryContainer,
 		}
+		ctl = r.controllers.Get(urlprefix, ctx)
 		rts []reflect.Value
 		err WebError
 	)
@@ -55,7 +55,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	} else {
 		rts, err = ctl.Call(req.Method)
 		if err == nil {
-			err = render(rts, ctx)
+			err = render(rts, ctl)
 		} else {
 			err.Append(404, "Fail to call `%s`->`%s`", ctl, req.Method)
 		}
@@ -70,7 +70,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 		res.Write([]byte(fmt.Sprintf("</ul><h3>Call stack:</h3><ul>")))
 		for _, _nod := range err.CallStack() {
-			res.Write([]byte(fmt.Sprintf("<li style:'padding-left:100px'>%s:%d</li>", _nod.Func, _nod.Line)))
+			res.Write([]byte(fmt.Sprintf("<li>%s:%d</li>", _nod.Func, _nod.Line)))
 		}
 		res.Write([]byte("</ul><hr><h4>Power by GoWeb github.com/ywzjackal/goweb </h4></body></html>"))
 	}

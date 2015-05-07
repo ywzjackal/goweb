@@ -14,6 +14,8 @@ type injectNode struct {
 type Controller2 interface {
 	// Context() return current http context
 	Context() Context
+	// SetContext used by framewrok, no use for user
+	SetContext(Context)
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() FactoryType
 	// Call() by request url prefix, if success, []reflect.value contain the method
@@ -41,6 +43,10 @@ type controllerExample struct {
 // Context() return the context of client request
 func (c *controller2) Context() Context {
 	return c._ctx
+}
+
+func (c *controller2) SetContext(ctx Context) {
+	c._ctx = ctx
 }
 
 // Type() return the controller type,one of FactoryTypeStandalone

@@ -42,7 +42,7 @@ func RegisterView(name string, view View) {
 }
 
 type View interface {
-	Render(Context, ...interface{}) WebError
+	Render(Controller2, ...interface{}) WebError
 	ResponseWriter() http.ResponseWriter
 }
 
@@ -66,9 +66,9 @@ type ViewJson struct {
 	*view
 }
 
-func (v *view) Render(c Context, args ...interface{}) WebError {
-	raw := []byte(fmt.Sprintf("% +v", args))
-	_, err := c.ResponseWriter().Write(raw)
+func (v *view) Render(c Controller2, args ...interface{}) WebError {
+	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
+	_, err := c.Context().ResponseWriter().Write(raw)
 	return NewWebError(1, err.Error())
 }
 
@@ -80,9 +80,9 @@ func (v *viewHtml) Request() *http.Request {
 	return v.req
 }
 
-func (v *viewHtml) Render(c Context, args ...interface{}) WebError {
+func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {
 	var (
-		name          = strings.ToLower(c.Request().URL.Path)
+		name          = strings.ToLower(c.Context().Request().URL.Path)
 		err  WebError = nil
 	)
 	if Debug {
@@ -91,45 +91,45 @@ func (v *viewHtml) Render(c Context, args ...interface{}) WebError {
 	buffer := bytes.Buffer{}
 	writer := bufio.NewWriter(&buffer)
 	switch len(args) {
-	case 1:
-		e := rootTemplate.ExecuteTemplate(writer, name, args[0])
+	case 0:
+		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
 			return NewWebError(500, e.Error())
 		}
-	case 2:
-		name, ok := args[1].(string)
+	case 1:
+		name, ok := args[0].(string)
 		if !ok {
-			return NewWebError(500, "invalid view template name:%+v,need string", args[1])
+			return NewWebError(500, "invalid view template name:%+v,need string", args[0])
 		}
-		e := rootTemplate.ExecuteTemplate(writer, name, args[0])
+		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
 			return NewWebError(500, e.Error())
 		}
 	default:
-		e := rootTemplate.ExecuteTemplate(writer, name, nil)
+		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
 			return NewWebError(500, e.Error())
 		}
 	}
 	writer.Flush()
-	c.ResponseWriter().WriteHeader(200)
-	c.ResponseWriter().Write(buffer.Bytes())
+	c.Context().ResponseWriter().WriteHeader(200)
+	c.Context().ResponseWriter().Write(buffer.Bytes())
 	return err
 }
 
-func (v *ViewJson) Render(c Context, args ...interface{}) WebError {
+func (v *ViewJson) Render(c Controller2, args ...interface{}) WebError {
 	if len(args) == 1 {
-		b, err := json.MarshalIndent(args[0], "", " ")
+		b, err := json.MarshalIndent(c, "", " ")
 		if err != nil {
-			return NewWebError(1, err.Error())
+			return NewWebError(500, err.Error())
 		}
-		_, err = c.ResponseWriter().Write(b)
+		_, err = c.Context().ResponseWriter().Write(b)
 	} else {
 		b, err := json.MarshalIndent(args, "", " ")
 		if err != nil {
-			return NewWebError(1, err.Error())
+			return NewWebError(500, err.Error())
 		}
-		_, err = c.ResponseWriter().Write(b)
+		_, err = c.Context().ResponseWriter().Write(b)
 	}
 	return nil
 }

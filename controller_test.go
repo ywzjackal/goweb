@@ -28,24 +28,20 @@ func (f *FactoryCounter) Current() int {
 }
 
 type ControllerCounter struct {
-	*controller
-}
-
-type Params struct {
-	parameters
+	Controller2
 	Count int
 }
 
-func (f *ControllerCounter) ActionDefault(
-	params *Params, fa *FactoryCounter, res http.ResponseWriter) {
-	num := fa.Current() + params.Count
-	res.Write([]byte(fmt.Sprintf("%d", num)))
+func (f *ControllerCounter) ActionGet() {
+	num := f.Count
+
+	f.Context().ResponseWriter().Write([]byte(fmt.Sprintf("%d", num)))
 }
 
 func startWsServer() {
 	router := &router{}
 	router.Init()
-	router.RegisterController(&ControllerCounter{})
+	router.ControllerContainer().Register("/", ControllerCounter{})
 	router.RegisterFactory(&FactoryCounter{})
 	httpserver = httptest.NewServer(nil)
 	serverAddr = httpserver.Listener.Addr().String()
