@@ -15,6 +15,7 @@ type actionWrap struct {
 	name           string
 	method         *reflect.Method
 	context        reflect.Value
+	urlParameters  []string
 	parameters     []reflect.Value
 	parameterTypes []reflect.Type
 }

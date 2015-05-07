@@ -10,6 +10,46 @@ import (
 	"time"
 )
 
+func reflectType(rt reflect.Type) string {
+	typstr := ""
+	for rt.Kind() == reflect.Ptr {
+		typstr = typstr + "*"
+		rt = rt.Elem()
+	}
+	return typstr + rt.Kind().String()
+}
+
+func isActionMethod(method *reflect.Method) WebError {
+	if !strings.HasPrefix(method.Name, ActionPrefix) {
+		return NewWebError(500, "func %s doesn't have prefix '%s'", method.Name, ActionPrefix)
+	}
+	if method.Type.NumIn() != 1 {
+		err := NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn()-1)
+		Err.Print(err.Error())
+		return err
+	}
+	if method.Type.NumOut() == 0 || method.Type.Out(0).Kind() != reflect.String {
+		err := NewWebError(500, "Action func %s need function with at least on parameters out, the first parameters out must be string to specify which view do you need,like 'json','txt','html' etc.", method.Name)
+		Err.Print(err.Error())
+		return err
+	}
+	return nil
+}
+
+func isInterfaceController(itfs interface{}) WebError {
+	var (
+		t = reflect.TypeOf(itfs)
+	)
+	_, ok := itfs.(*controller2)
+	if !ok {
+		return NewWebError(500, "`%s` is not based on goweb.Controller!", t)
+	}
+	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
+		return nil
+	}
+	return NewWebError(500, "`%s` is not a pointer of struct!", reflectType(t))
+}
+
 func isTypeLookupAble(rt reflect.Type) WebError {
 	if rt.Kind() == reflect.Interface {
 		return nil
@@ -17,28 +57,14 @@ func isTypeLookupAble(rt reflect.Type) WebError {
 	if rt.Kind() == reflect.Ptr && rt.Elem().Kind() == reflect.Struct {
 		return nil
 	}
-	typstr := ""
-	_rt := rt
-	for _rt.Kind() == reflect.Ptr {
-		typstr = typstr + "*"
-		_rt = _rt.Elem()
-	}
-	typstr = typstr + _rt.Kind().String()
-	return NewWebError(500, "`%s(%s)` is not a interface or *struct", rt, typstr)
+	return NewWebError(500, "`%s(%s)` is not a interface or *struct", rt, reflectType(rt))
 }
 
 func isTypeRegisterAble(rt reflect.Type) WebError {
 	if rt.Kind() == reflect.Ptr && rt.Elem().Kind() == reflect.Struct {
 		return nil
 	}
-	typstr := ""
-	_rt := rt
-	for _rt.Kind() == reflect.Ptr {
-		typstr = typstr + "*"
-		_rt = _rt.Elem()
-	}
-	typstr = typstr + _rt.Kind().String()
-	return NewWebError(500, "`%s(%s)` is not a *struct", rt, typstr)
+	return NewWebError(500, "`%s(%s)` is not a *struct", rt, reflectType(rt))
 }
 
 func lookupAndInjectFactories(typs []reflect.Type, ctx Context) ([]reflect.Value, WebError) {
@@ -162,6 +188,7 @@ func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *ac
 		parameters:     make([]reflect.Value, method.Type.NumIn()),
 		parameterTypes: make([]reflect.Type, method.Type.NumIn()),
 		context:        reflect.Value{},
+		urlParameters:  []string{},
 	}
 	for i := 0; i < method.Type.NumIn(); i++ {
 		t := method.Type.In(i)
@@ -171,27 +198,27 @@ func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *ac
 	return aw
 }
 
-func initControllerWrap(c Controller) *controllerWrap {
-	var (
-		v    = reflect.ValueOf(c)
-		t    = reflect.TypeOf(c)
-		name = t.Elem().Name()
-	)
-	wrap := &controllerWrap{
-		controllerName: t.Name(),
-		name:           strings.ToLower(name),
-		fullName:       t.PkgPath() + t.Name(),
-		actions:        make(map[string]*actionWrap),
-	}
-	for i := 0; i < t.NumMethod(); i++ {
-		m := t.Method(i)
-		if strings.HasPrefix(m.Name, ActionPrefix) {
-			aw := initActionWrap(i, &m, v)
-			wrap.actions[aw.name] = aw
-			//			Log.Printf("Init `%s` : `%s`", wrap.name, m.Name)
-		} else {
-			//			Log.Printf("Igno `%s` : `%s`", wrap.name, m.Name)
-		}
-	}
-	return wrap
-}
+//func initControllerWrap(c Controller) *controllerWrap {
+//	var (
+//		v    = reflect.ValueOf(c)
+//		t    = reflect.TypeOf(c)
+//		name = t.Elem().Name()
+//	)
+//	wrap := &controllerWrap{
+//		controllerName: t.Name(),
+//		name:           strings.ToLower(name),
+//		fullName:       t.PkgPath() + t.Name(),
+//		actions:        make(map[string]*actionWrap),
+//	}
+//	for i := 0; i < t.NumMethod(); i++ {
+//		m := t.Method(i)
+//		if strings.HasPrefix(m.Name, ActionPrefix) {
+//			aw := initActionWrap(i, &m, v)
+//			wrap.actions[aw.name] = aw
+//			//			Log.Printf("Init `%s` : `%s`", wrap.name, m.Name)
+//		} else {
+//			//			Log.Printf("Igno `%s` : `%s`", wrap.name, m.Name)
+//		}
+//	}
+//	return wrap
+//}

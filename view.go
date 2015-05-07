@@ -1,6 +1,8 @@
 package goweb
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -80,33 +82,38 @@ func (v *viewHtml) Request() *http.Request {
 
 func (v *viewHtml) Render(c Context, args ...interface{}) WebError {
 	var (
-		name          = strings.ToLower(c.ControllerName() + "_" + c.ActionName())
+		name          = strings.ToLower(c.Request().URL.Path)
 		err  WebError = nil
 	)
 	if Debug {
 		ReloadTemplates()
 	}
+	buffer := bytes.Buffer{}
+	writer := bufio.NewWriter(&buffer)
 	switch len(args) {
 	case 1:
-		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		e := rootTemplate.ExecuteTemplate(writer, name, args[0])
 		if e != nil {
-			err = NewWebError(1, e.Error())
+			return NewWebError(500, e.Error())
 		}
 	case 2:
 		name, ok := args[1].(string)
 		if !ok {
-			return NewWebError(1, "invalid view template name:%+v,need string", args[1])
+			return NewWebError(500, "invalid view template name:%+v,need string", args[1])
 		}
-		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, args[0])
+		e := rootTemplate.ExecuteTemplate(writer, name, args[0])
 		if e != nil {
-			err = NewWebError(1, e.Error())
+			return NewWebError(500, e.Error())
 		}
 	default:
-		e := rootTemplate.ExecuteTemplate(c.ResponseWriter(), name, nil)
+		e := rootTemplate.ExecuteTemplate(writer, name, nil)
 		if e != nil {
-			err = NewWebError(1, e.Error())
+			return NewWebError(500, e.Error())
 		}
 	}
+	writer.Flush()
+	c.ResponseWriter().WriteHeader(200)
+	c.ResponseWriter().Write(buffer.Bytes())
 	return err
 }
 

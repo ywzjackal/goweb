@@ -8,8 +8,6 @@ type Context interface {
 	Request() *http.Request
 	ResponseWriter() http.ResponseWriter
 	FactoryContainer() FactoryContainer
-	ControllerName() string
-	ActionName() string
 	SetTitle(string)
 }
 
@@ -19,8 +17,6 @@ type context struct {
 	request          *http.Request
 	responseWriter   http.ResponseWriter
 	factoryContainer FactoryContainer
-	controllerName   string
-	actionName       string
 }
 
 func (c *context) Request() *http.Request {
@@ -33,12 +29,4 @@ func (c *context) ResponseWriter() http.ResponseWriter {
 
 func (c *context) FactoryContainer() FactoryContainer {
 	return c.factoryContainer
-}
-
-func (c *context) ControllerName() string {
-	return c.controllerName
-}
-
-func (c *context) ActionName() string {
-	return c.actionName
 }

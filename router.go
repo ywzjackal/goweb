@@ -3,6 +3,7 @@ package goweb
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -15,7 +16,7 @@ var (
 type Router interface {
 	http.Handler
 	FactoryContainer
-	ControllerContainer
+	ControllerContainer() ControllerContainer2
 }
 
 func NewRouter() Router {
@@ -24,48 +25,48 @@ func NewRouter() Router {
 
 type router struct {
 	http.Handler
-	controllerContainer
+	controllers controllerContainer2
 	factoryContainer
-	controllers map[string]Controller
 }
 
 func (r *router) Init() WebError {
 	return r.factoryContainer.Init()
 }
 
+func (r *router) ControllerContainer() ControllerContainer2 {
+	return &r.controllers
+}
+
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var (
-		begin    = time.Now()
-		path     = req.URL.Path
-		array    = strings.Split(path, "/")
-		arrayLen = len(array)
-		context  = &context{
+		begin     = time.Now()
+		urlprefix = strings.ToLower(req.URL.Path)
+		ctl       = r.controllers.Get(urlprefix)
+		ctx       = &context{
 			request:          req,
 			responseWriter:   res,
 			factoryContainer: &r.factoryContainer,
 		}
+		rts []reflect.Value
 		err WebError
 	)
-	if arrayLen > 1 {
-		context.controllerName = strings.ToLower(array[1])
-		if arrayLen > 2 {
-			context.actionName = array[2]
+	if ctl == nil {
+		err = NewWebError(404, "Controller Not found by prefix:%s!", urlprefix)
+	} else {
+		rts, err = ctl.Call(req.Method)
+		if err == nil {
+			err = render(rts, ctx)
+		} else {
+			err.Append(404, "Fail to call `%s`->`%s`", ctl, req.Method)
 		}
 	}
-	if strings.TrimSpace(context.controllerName) == "" {
-		context.controllerName = DefaultControllerName
-	}
-	if strings.TrimSpace(context.actionName) == "" {
-		context.actionName = DefaultActionName
-	}
-	err = r.Call(context)
 	if err != nil {
 		res.WriteHeader(err.Code())
 		res.Write([]byte("<!DOCTYPE html>\r\n<html><head><title>HTTP-Internal Server Error</title></head>"))
 		res.Write([]byte("<body><h1>500:HTTP-Internal Server Error</h1><hr/>"))
 		res.Write([]byte(fmt.Sprintf("<h3>Error stack:</h3><ul>")))
 		for _, _err := range err.Children() {
-			res.Write([]byte(fmt.Sprintf("<li style:'padding-left:100px'>%s</li>", _err.ErrorAll())))
+			res.Write([]byte(fmt.Sprintf("<li>%s</li>", _err.ErrorAll())))
 		}
 		res.Write([]byte(fmt.Sprintf("</ul><h3>Call stack:</h3><ul>")))
 		for _, _nod := range err.CallStack() {
