@@ -17,6 +17,7 @@ type Router interface {
 	http.Handler
 	FactoryContainer
 	ControllerContainer() ControllerContainer2
+	MemStorage() Storage
 }
 
 func NewRouter() Router {
@@ -27,9 +28,12 @@ type router struct {
 	http.Handler
 	controllers controllerContainer2
 	factoryContainer
+	StorageMemory
 }
 
 func (r *router) Init() WebError {
+	r.StorageMemory.Init()
+	r.ControllerContainer().Init()
 	return r.factoryContainer.Init()
 }
 
@@ -37,19 +41,26 @@ func (r *router) ControllerContainer() ControllerContainer2 {
 	return &r.controllers
 }
 
+func (r *router) MemStorage() Storage {
+	return &r.StorageMemory
+}
+
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var (
 		begin     = time.Now()
 		urlprefix = strings.ToLower(req.URL.Path)
+		session   = &session{}
 		ctx       = &context{
 			request:          req,
 			responseWriter:   res,
 			factoryContainer: &r.factoryContainer,
+			session:          session,
 		}
-		ctl = r.controllers.Get(urlprefix, ctx)
 		rts []reflect.Value
 		err WebError
 	)
+	session.Init(res, req, r)
+	ctl := r.controllers.Get(urlprefix, ctx)
 	if ctl == nil {
 		err = NewWebError(404, "Controller Not found by prefix:%s!", urlprefix)
 	} else {
@@ -63,7 +74,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		res.WriteHeader(err.Code())
 		res.Write([]byte("<!DOCTYPE html>\r\n<html><head><title>HTTP-Internal Server Error</title></head>"))
-		res.Write([]byte("<body><h1>500:HTTP-Internal Server Error</h1><hr/>"))
+		res.Write([]byte(fmt.Sprintf("<body><h1>500:HTTP-Internal Server Error</h1><hr/>")))
 		res.Write([]byte(fmt.Sprintf("<h3>Error stack:</h3><ul>")))
 		for _, _err := range err.Children() {
 			res.Write([]byte(fmt.Sprintf("<li>%s</li>", _err.ErrorAll())))

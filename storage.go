@@ -10,9 +10,18 @@ var (
 )
 
 type Storage interface {
+	// Init() called by framework before used.
+	Init() WebError
+	// Get() return the element(interface{}) find by key,
+	// return nil if not found with the key
 	Get(string) interface{}
+	// Set() element(interface{}) with it's key,
+	// and data will removed after the default duration from last query
 	Set(string, interface{})
+	// Set() element(interface{}) with life.
+	// data will be removed after the duration from last query
 	SetWithLife(string, interface{}, time.Duration)
+	// Remove() element before deadline.
 	Remove(string)
 }
 
@@ -34,6 +43,11 @@ func (s *storageValueWrap) Unlock() {
 type StorageMemory struct {
 	Storage
 	storage map[string]*storageValueWrap
+}
+
+func (s *StorageMemory) Init() WebError {
+	s.storage = make(map[string]*storageValueWrap)
+	return nil
 }
 
 func (s *StorageMemory) Get(key string) interface{} {

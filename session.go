@@ -2,52 +2,67 @@ package goweb
 
 import (
 	"net/http"
+	"time"
 )
 
 var (
-	SessionIdTag = "sid"
+	SessionIdTag   = "__sid__"
+	SessionTimeout = time.Minute * 1
 )
 
 type Session interface {
+	Init(http.ResponseWriter, *http.Request, Storage) WebError
 	Id() string
 	Get(string) string
 	Set(string, string)
 	Remove(string)
+	MemMap() map[string]interface{}
 }
 
 type session struct {
-	FactoryStateful
 	Session
-	Context
-	id string
+	id  string
+	req *http.Request
+	res http.ResponseWriter
+	mem map[string]interface{}
 }
 
-func (s *session) Init() {
-	// init session id
-	cookie, err := s.Request().Cookie(SessionIdTag)
-	if err != nil && cookie != nil && len(cookie.Value) != 0 {
+func (s *session) Init(res http.ResponseWriter, req *http.Request, storage Storage) WebError {
+	s.res = res
+	s.req = req
+	cookie, err := s.req.Cookie(SessionIdTag)
+	if err == nil && cookie != nil && len(cookie.Value) != 0 {
 		s.id = cookie.Value
 	} else {
 		// generate new session id
-		s.id = generateSessionIdByRequest(s.Request())
+		s.id = generateSessionIdByRequest(s.req)
 		cookie = &http.Cookie{
-			Name:   SessionIdTag,
-			Value:  s.id,
-			MaxAge: 0, // means session cookie
-			Path:   "/",
+			Name:  SessionIdTag,
+			Value: s.id,
 		}
-		http.SetCookie(s.ResponseWriter(), cookie)
+		http.SetCookie(s.res, cookie)
 	}
+	itfs := storage.Get(s.id)
+	if itfs == nil {
+		mem := make(map[string]interface{})
+		storage.SetWithLife(s.id, mem, SessionTimeout)
+		s.mem = mem
+	} else {
+		s.mem = itfs.(map[string]interface{})
+	}
+	return nil
 }
 
 func (s *session) Id() string {
-	s.Init()
 	return s.id
 }
 
+func (s *session) MemMap() map[string]interface{} {
+	return s.mem
+}
+
 func (s *session) Get(key string) string {
-	s.Init()
-	cookie, err := s.Request().Cookie(key)
+	cookie, err := s.req.Cookie(key)
 	if err != nil {
 		Err.Printf("Get cookie failed!%s", err.Error())
 		return ""
@@ -56,23 +71,21 @@ func (s *session) Get(key string) string {
 }
 
 func (s *session) Set(key, value string) {
-	s.Init()
 	cookie := &http.Cookie{
 		Name:   key,
 		Value:  value,
 		MaxAge: 0, // means session cookie
 		Path:   "/",
 	}
-	http.SetCookie(s.ResponseWriter(), cookie)
+	http.SetCookie(s.res, cookie)
 }
 
 func (s *session) Remove(key string) {
-	s.Init()
 	cookie := &http.Cookie{
 		Name:   key,
 		Value:  "",
 		MaxAge: -1,
 		Path:   "/",
 	}
-	http.SetCookie(s.ResponseWriter(), cookie)
+	http.SetCookie(s.res, cookie)
 }

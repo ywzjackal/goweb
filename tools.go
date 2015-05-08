@@ -1,13 +1,12 @@
 package goweb
 
 import (
-	"crypto/sha1"
+	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func reflectType(rt reflect.Type) string {
@@ -172,11 +171,9 @@ func lookupAndInjectFromContext(paramType reflect.Type, context Context) (reflec
 }
 
 func generateSessionIdByRequest(req *http.Request) string {
-	now := time.Now()
-	sha := sha1.New()
-	source := []byte(now.String() + req.Host + req.RemoteAddr)
-	sum := sha.Sum(source)
-	return base64.StdEncoding.EncodeToString(sum)
+	bytes := make([]byte, 4)
+	rand.Read(bytes)
+	return base64.StdEncoding.EncodeToString(bytes)
 }
 
 func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *actionWrap {

@@ -1,67 +1,76 @@
 package goweb
 
-//type controllerWrap struct {
-//	controllerName string
-//	name           string
-//	fullName       string
-//	actions        map[string]*actionWrap
-//	controller     *controller
-//}
+import "reflect"
 
-//type ControllerContainer interface {
-//	RegisterController(Controller)
-//	Controller(string) Controller
-//	Call(Context) WebError
-//}
+// ControllerContainer is a container to store controllers
+type ControllerContainer2 interface {
+	Init() WebError
+	// Register a new controller to container
+	// prefix is url prefix
+	Register(prefix string, ctl Controller2)
+	// Get controller by url prefix
+	// return nil if not found in container
+	Get(prefix string, ctx Context) Controller2
+}
 
-//type controllerContainer struct {
-//	ControllerContainer
-//	controllers map[string]*controllerWrap
-//}
+// controllerContainer is buildin default controller container
+type controllerContainer2 struct {
+	ControllerContainer2
+	ctls map[string]Controller2
+}
 
-//func (c *controllerContainer) RegisterController(ci Controller) {
-//	if c.controllers == nil {
-//		c.controllers = make(map[string]*controllerWrap)
-//	}
-//	cw := initControllerWrap(ci)
-//	Log.Println("Register Controller `" + cw.name + "`")
-//	c.controllers[cw.name] = cw
-//}
+func (c *controllerContainer2) Init() WebError {
+	c.ctls = make(map[string]Controller2)
+	return nil
+}
 
-//func (c *controllerContainer) Controller(name string) Controller {
-//	if c.controllers == nil {
-//		c.controllers = make(map[string]*controllerWrap)
-//	}
-//	cwp, ok := c.controllers[name]
-//	if ok {
-//		return cwp.controller
-//	}
-//	return nil
-//}
+func (c *controllerContainer2) Register(prefix string, ctl Controller2) {
+	_, exist := c.ctls[prefix]
+	if exist {
+		panic("URL Prefix:" + prefix + " register duplicated")
+	}
+	err := InitController(ctl)
+	if err != nil {
+		panic(err.ErrorAll())
+	}
+	c.ctls[prefix] = ctl
+}
 
-//func (c *controllerContainer) Call(ctx Context) WebError {
-//	var (
-//		err        WebError
-//		callParams []reflect.Value
-//	)
-//	cname := strings.ToLower(ControllerPrefix + ctx.ControllerName())
-//	aname := strings.ToLower(ActionPrefix + ctx.ActionName())
-//	cwp, ok := c.controllers[cname]
-//	if !ok {
-//		return NewWebError(404, "Controller Not Found:"+cname)
-//	}
-//	awp, ok := cwp.actions[aname]
-//	if !ok {
-//		return NewWebError(404, cname+" doesn't have "+aname)
-//	}
-//	callParams, err = lookupAndInjectFactories(awp.parameterTypes[1:], ctx)
-//	if err != nil {
-//		return err.Append(500, "Fail to Call %s:%s", cname, aname)
-//	}
-//	returnValues := awp.method.Func.Call(callParams)
-//	err = render(returnValues, ctx)
-//	if err != nil {
-//		return NewWebError(505, err.Error(), nil)
-//	}
-//	return nil
-//}
+func (c *controllerContainer2) Get(prefix string, ctx Context) Controller2 {
+	ctl, exist := c.ctls[prefix]
+	if !exist || ctl == nil {
+		return nil
+	}
+	switch ctl.Type() {
+	case FactoryTypeStandalone:
+		ctl.SetContext(ctx)
+		return ctl
+	case FactoryTypeStateless:
+		ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(Controller2)
+		if err := InitController(ctl); err != nil {
+			panic(err)
+		} else {
+			ctl.SetContext(ctx)
+			return ctl
+		}
+	case FactoryTypeStateful:
+		mem := ctx.Session().MemMap()
+		itfs, isexist := mem["__ctl_"+prefix]
+		if !isexist {
+			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(Controller2)
+			if err := InitController(ctl); err != nil {
+				panic(err)
+			}
+			mem["__ctl_"+prefix] = ctl
+			ctl.SetContext(ctx)
+			return ctl
+		}
+		ctl, ok := itfs.(Controller2)
+		if !ok {
+			panic("kljlkjljl;jl;jl;jljlj")
+		}
+		ctl.SetContext(ctx)
+		return ctl
+	}
+	return nil
+}

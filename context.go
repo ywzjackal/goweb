@@ -9,6 +9,7 @@ type Context interface {
 	ResponseWriter() http.ResponseWriter
 	FactoryContainer() FactoryContainer
 	SetTitle(string)
+	Session() Session
 }
 
 type context struct {
@@ -17,6 +18,7 @@ type context struct {
 	request          *http.Request
 	responseWriter   http.ResponseWriter
 	factoryContainer FactoryContainer
+	session          Session
 }
 
 func (c *context) Request() *http.Request {
@@ -29,4 +31,8 @@ func (c *context) ResponseWriter() http.ResponseWriter {
 
 func (c *context) FactoryContainer() FactoryContainer {
 	return c.factoryContainer
+}
+
+func (c *context) Session() Session {
+	return c.session
 }
