@@ -11,48 +11,68 @@ import (
 )
 
 var (
-	TemplateSuffix   = ".html"
-	TemplatePosition = "undefined!" //"./templates"
-	DelimsLeft       = "{{"
-	DelimsRight      = "}}"
-	views            = make(map[string]View)
-	rootTemplate     = template.New("")
+	// TemplateSuffix is template suffix -.-
+	TemplateSuffix = ".html"
+	// TemplatePosition is template position path -.-
+	TemplatePosition = "" //"./templates"
+	// html.template delims attributes of left
+	DelimsLeft = "{{"
+	// html.template delims attributes of right
+	DelimsRight = "}}"
+	// views map container
+	views = make(map[string]View)
+	// never mind! -.-
+	rootTemplate = template.New("")
 )
 
+// Initialize buildin view components
 func init() {
-	Log.Print("INIT VIEWS...")
-	views["html"] = &viewHtml{}
-	views["json"] = &ViewJson{}
-	views[""] = &view{}
+	RegisterView("html", &viewHtml{})
+	RegisterView("json", &viewJson{})
+	RegisterView("", &view{})
 	//
 	ReloadTemplates()
 }
-
+// ReloadTemplates, you know what it will do. `.`
 func ReloadTemplates() {
-	if TemplatePosition == "undefined!" {
-		return
+	if TemplatePosition == "" {
+		panic("Please set `goweb.TemplatePosition to path of templates directory!`")
 	}
 	rootTemplate = template.New("")
 	rootTemplate = template.Must(rootTemplate.Delims(DelimsLeft, DelimsRight).
 		ParseGlob(TemplatePosition + "/*"))
 }
 
+// RegisterView should be called by custom view component in 'package file init() function'
+// will panic when register with duplicate name.
+//
+// RegisterView 应该在用户引用的自定义视图组件的包文件的init（）函数中调用以注册新的视图组件
+// 如果出现panic，说明视图组件的名字被重复注册
 func RegisterView(name string, view View) {
-	views[name] = view
+	if _, ok := views[strings.ToLower(name)]; ok {
+		panic("Register view `" + name + "` duplicate!")
+	}
+	views[strings.ToLower(name)] = view
 }
 
+// View is the top of view component's interface, all custom view component need
+// implament from this, and realize method Render(Controller, ...interface{}) WebError
+//
+// View 是视图的定级接口组件，所有的自定义视图组件必须实现此接口
 type View interface {
 	Render(Controller2, ...interface{}) WebError
-	ResponseWriter() http.ResponseWriter
 }
 
 type view struct {
 	View
-	res http.ResponseWriter
 }
 
 type ViewHtml interface {
-	Request() *http.Request
+	View
+}
+
+type ViewJson interface {
+	View
 }
 
 type viewHtml struct {
@@ -62,7 +82,8 @@ type viewHtml struct {
 	req *http.Request
 }
 
-type ViewJson struct {
+type viewJson struct {
+	ViewJson
 	*view
 }
 
@@ -70,14 +91,6 @@ func (v *view) Render(c Controller2, args ...interface{}) WebError {
 	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
 	_, err := c.Context().ResponseWriter().Write(raw)
 	return NewWebError(1, err.Error())
-}
-
-func (v *view) ResponseWriter() http.ResponseWriter {
-	return v.res
-}
-
-func (v *viewHtml) Request() *http.Request {
-	return v.req
 }
 
 func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {
@@ -117,7 +130,7 @@ func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {
 	return err
 }
 
-func (v *ViewJson) Render(c Controller2, args ...interface{}) WebError {
+func (v *viewJson) Render(c Controller2, args ...interface{}) WebError {
 	if len(args) == 1 {
 		b, err := json.MarshalIndent(c, "", " ")
 		if err != nil {

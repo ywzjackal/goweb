@@ -16,7 +16,7 @@ type Session interface {
 	Get(string) string
 	Set(string, string)
 	Remove(string)
-	MemMap() map[string]interface{}
+	MemMap() map[interface{}]interface{}
 }
 
 type session struct {
@@ -24,7 +24,7 @@ type session struct {
 	id  string
 	req *http.Request
 	res http.ResponseWriter
-	mem map[string]interface{}
+	mem map[interface{}]interface{}
 }
 
 func (s *session) Init(res http.ResponseWriter, req *http.Request, storage Storage) WebError {
@@ -44,11 +44,11 @@ func (s *session) Init(res http.ResponseWriter, req *http.Request, storage Stora
 	}
 	itfs := storage.Get(s.id)
 	if itfs == nil {
-		mem := make(map[string]interface{})
+		mem := make(map[interface{}]interface{})
 		storage.SetWithLife(s.id, mem, SessionTimeout)
 		s.mem = mem
 	} else {
-		s.mem = itfs.(map[string]interface{})
+		s.mem = itfs.(map[interface{}]interface{})
 	}
 	return nil
 }
@@ -57,7 +57,7 @@ func (s *session) Id() string {
 	return s.id
 }
 
-func (s *session) MemMap() map[string]interface{} {
+func (s *session) MemMap() map[interface{}]interface{} {
 	return s.mem
 }
 

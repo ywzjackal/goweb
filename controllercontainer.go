@@ -29,7 +29,7 @@ func (c *controllerContainer2) Register(prefix string, ctl Controller2) {
 	if exist {
 		panic("URL Prefix:" + prefix + " register duplicated")
 	}
-	err := InitController(ctl)
+	err := initController(ctl)
 	if err != nil {
 		panic(err.ErrorAll())
 	}
@@ -42,23 +42,23 @@ func (c *controllerContainer2) Get(prefix string, ctx Context) Controller2 {
 		return nil
 	}
 	switch ctl.Type() {
-	case FactoryTypeStandalone:
+	case LifeTypeStandalone:
 		ctl.SetContext(ctx)
 		return ctl
-	case FactoryTypeStateless:
+	case LifeTypeStateless:
 		ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(Controller2)
-		if err := InitController(ctl); err != nil {
+		if err := initController(ctl); err != nil {
 			panic(err)
 		} else {
 			ctl.SetContext(ctx)
 			return ctl
 		}
-	case FactoryTypeStateful:
+	case LifeTypeStateful:
 		mem := ctx.Session().MemMap()
 		itfs, isexist := mem["__ctl_"+prefix]
 		if !isexist {
 			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(Controller2)
-			if err := InitController(ctl); err != nil {
+			if err := initController(ctl); err != nil {
 				panic(err)
 			}
 			mem["__ctl_"+prefix] = ctl

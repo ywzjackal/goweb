@@ -30,7 +30,7 @@ type Controller2 interface {
 	// SetContext used by framewrok, no use for user
 	SetContext(Context)
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
-	Type() FactoryType
+	Type() LifeType
 	// Call() by request url prefix, if success, []reflect.value contain the method
 	// parameters out, else WebError will be set.
 	Call(mtd string) ([]reflect.Value, WebError)
@@ -44,7 +44,7 @@ type controller2 struct {
 	_standalone []injectNode          // factory which need be injected after first initialized
 	_stateful   []injectNode          // factory which need be injected from session before called
 	_stateless  []injectNode          // factory which need be injected always new before called
-	_type       FactoryType           // standalone or stateless or stateful
+	_type       LifeType           // standalone or stateless or stateful
 	_actions    map[string]*reflect.Value
 }
 
@@ -65,12 +65,12 @@ func (c *controller2) SetContext(ctx Context) {
 
 // Type() return the controller type,one of FactoryTypeStandalone
 // FactoryTypeStateless or FactoryTypeStatful
-func (c *controller2) Type() FactoryType {
+func (c *controller2) Type() LifeType {
 	return c._type
 }
 
 // InitController when register to controller container before used.
-func InitController(ctli Controller2) WebError {
+func initController(ctli Controller2) WebError {
 	var (
 		rtp reflect.Type  = reflect.TypeOf(ctli)
 		rva reflect.Value = reflect.ValueOf(ctli)
@@ -94,11 +94,11 @@ func InitController(ctli Controller2) WebError {
 			if fdva.Type().Kind() == reflect.Interface {
 				switch fdva.Type().Name() {
 				case "ControllerStandalone":
-					ctl._type = (FactoryTypeStandalone)
+					ctl._type = (LifeTypeStandalone)
 				case "ControllerStateful":
-					ctl._type = (FactoryTypeStateful)
+					ctl._type = (LifeTypeStateful)
 				case "ControllerStateless":
-					ctl._type = (FactoryTypeStateless)
+					ctl._type = (LifeTypeStateless)
 				default:
 				}
 				switch {
@@ -123,19 +123,19 @@ func InitController(ctli Controller2) WebError {
 				break
 			}
 			switch factoryType(stfd.Type) {
-			case FactoryTypeStandalone:
+			case LifeTypeStandalone:
 				ctl._standalone = append(ctl._stateful, injectNode{
 					id: i,
 					tp: stfd.Type,
 					va: &fdva,
 				})
-			case FactoryTypeStateful:
+			case LifeTypeStateful:
 				ctl._stateful = append(ctl._stateful, injectNode{
 					id: i,
 					tp: stfd.Type,
 					va: &fdva,
 				})
-			case FactoryTypeStateless:
+			case LifeTypeStateless:
 				ctl._stateless = append(ctl._stateful, injectNode{
 					id: i,
 					tp: stfd.Type,
@@ -146,7 +146,7 @@ func InitController(ctli Controller2) WebError {
 			}
 		}
 	}
-	if ctl.Type() == FactoryTypeError {
+	if ctl.Type() == LifeTypeError {
 		return NewWebError(500, "Controller need extend from one of interface ControllerStandalone/ControllerStateful/ControllerStateless")
 	}
 	for i := 0; i < rtp.NumMethod(); i++ {
