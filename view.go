@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -31,8 +30,9 @@ func init() {
 	RegisterView("json", &viewJson{})
 	RegisterView("", &view{})
 	//
-	ReloadTemplates()
+	//	ReloadTemplates()
 }
+
 // ReloadTemplates, you know what it will do. `.`
 func ReloadTemplates() {
 	if TemplatePosition == "" {
@@ -88,9 +88,12 @@ type viewJson struct {
 }
 
 func (v *view) Render(c Controller2, args ...interface{}) WebError {
-	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
-	_, err := c.Context().ResponseWriter().Write(raw)
-	return NewWebError(1, err.Error())
+	//	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
+	//	_, err := c.Context().ResponseWriter().Write(raw)
+	//	if err != nil {
+	//		return NewWebError(500, err.Error())
+	//	}
+	return nil
 }
 
 func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {

@@ -15,7 +15,8 @@ var (
 
 type Router interface {
 	http.Handler
-	FactoryContainer
+	Init() WebError
+	FactoryContainer() FactoryContainer
 	ControllerContainer() ControllerContainer2
 	MemStorage() Storage
 }
@@ -27,18 +28,22 @@ func NewRouter() Router {
 type router struct {
 	http.Handler
 	controllers controllerContainer2
-	factoryContainer
+	factorys    factoryContainer
 	StorageMemory
 }
 
 func (r *router) Init() WebError {
 	r.StorageMemory.Init()
 	r.ControllerContainer().Init()
-	return r.factoryContainer.Init()
+	return r.FactoryContainer().Init()
 }
 
 func (r *router) ControllerContainer() ControllerContainer2 {
 	return &r.controllers
+}
+
+func (r *router) FactoryContainer() FactoryContainer {
+	return &r.factorys
 }
 
 func (r *router) MemStorage() Storage {
@@ -53,7 +58,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		ctx       = &context{
 			request:          req,
 			responseWriter:   res,
-			factoryContainer: &r.factoryContainer,
+			factoryContainer: r.FactoryContainer(),
 			session:          session,
 		}
 		rts []reflect.Value

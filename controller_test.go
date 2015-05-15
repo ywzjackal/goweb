@@ -28,21 +28,21 @@ func (f *FactoryCounter) Current() int {
 }
 
 type ControllerCounter struct {
-	Controller2
+	ControllerStandalone
 	Count int
 }
 
-func (f *ControllerCounter) ActionGet() {
+func (f *ControllerCounter) ActionGet() string {
 	num := f.Count
-
 	f.Context().ResponseWriter().Write([]byte(fmt.Sprintf("%d", num)))
+	return ""
 }
 
 func startWsServer() {
 	router := &router{}
 	router.Init()
-	router.ControllerContainer().Register("/", ControllerCounter{})
-	router.RegisterFactory(&FactoryCounter{})
+	router.ControllerContainer().Register("/counter", &ControllerCounter{})
+	router.FactoryContainer().Register(&FactoryCounter{})
 	httpserver = httptest.NewServer(nil)
 	serverAddr = httpserver.Listener.Addr().String()
 	log.Println("goweb server listen on", serverAddr)
@@ -61,8 +61,8 @@ func Test_Controller(t *testing.T) {
 		num (int64) = 1
 	)
 	once.Do(startWsServer)
-	for i := 0; i < 1000; i++ {
-		url := "http://" + serverAddr + "/counter?Count=" + fmt.Sprintf("%d", num)
+	for i := 0; i < 3; i++ {
+		url := "http://" + serverAddr + "/counter?count=" + fmt.Sprintf("%d", num)
 		t.Log("Get:", url)
 		res, err := http.Get(url)
 		if err != nil {

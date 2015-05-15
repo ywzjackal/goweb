@@ -12,7 +12,7 @@ type FactoryContainer interface {
 	Init() WebError
 	// RegisterFactory will register a new factory for Lookup later.
 	// 注册工厂，以供以后查询（Lookup）使用
-	Registe(Factory) WebError
+	Register(Factory) WebError
 	// Lookup factory by type from this container or depends and return it.
 	// Lookup also enject Ptr or Interface fields which is Exported and
 	// Setable for the factory be looking up.
@@ -50,12 +50,15 @@ func (f *factoryContainer) Register(faci Factory) WebError {
 	var (
 		t = reflect.TypeOf(faci)
 	)
-	_, duplicate := f.factorys[t]
-	if duplicate {
-		return NewWebError(500, "Regist factory `%s` duplicate!", t)
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	_, ok := f.factorys[t]
+	if ok {
+		return NewWebError(500, "Regist factory `%s` duplicate!", t.String())
 	}
 	if err := f.initFactory(faci); err != nil {
-		return err.Append(500, "Fail to Register factory `%s`!", t)
+		return err.Append(500, "Fail to Register factory `%s`!", t.String())
 	}
 	return nil
 }
@@ -65,10 +68,15 @@ func (f *factoryContainer) Lookup(rt reflect.Type, ctx Context) (reflect.Value, 
 		err    WebError      = nil // error
 		target reflect.Value       // target which we are looking for
 	)
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
 	fac, isexist := f.factorys[rt]
-	if !isexist {
-		for _tp, _fac := range f.factorys {
-			if _tp.AssignableTo(rt) {
+	if isexist {
+		goto found
+	} else {
+		for _typ, _fac := range f.factorys {
+			if _typ.AssignableTo(rt) {
 				f.factorys[rt] = _fac
 				fac = _fac
 				goto found
@@ -79,29 +87,26 @@ func (f *factoryContainer) Lookup(rt reflect.Type, ctx Context) (reflect.Value, 
 found:
 	switch fac._type {
 	case LifeTypeStandalone:
-		return fac._selfValue, nil
+		target = fac._selfValue
 	case LifeTypeStateful:
 		mem := ctx.Session().MemMap()
 		_target, isexist := mem["__fac_"+rt.Name()]
 		if !isexist {
-			target = reflect.New(reflect.TypeOf(fac._selfValue.Type()).Elem())
+			target = reflect.New(fac._selfValue.Type())
 			if err := f.initFactory(target.Interface().(Factory)); err != nil {
 				return target, err.Append(500, "create stateful factory `%s` fail!", rt)
 			}
 			mem["__fac_"+rt.Name()] = target
-			return target, nil
+		} else {
+			target, ok := _target.(reflect.Value)
+			if !ok {
+				return target, NewWebError(500, "can not restore stateful factory `%s` from session!", rt)
+			}
 		}
-		target, ok := _target.(reflect.Value)
-		if !ok {
-			return target, NewWebError(500, "can not restore stateful factory `%s` from session!", rt)
-		}
-		return target, nil
 	case LifeTypeStateless:
 		target = reflect.New(reflect.TypeOf(fac._selfValue.Type()).Elem())
 		if err := f.initFactory(target.Interface().(Factory)); err != nil {
 			return target, err.Append(500, "create stateless factory `%s` fail!", rt)
-		} else {
-			return target, nil
 		}
 	default:
 	}
@@ -191,5 +196,9 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 			}
 		}
 	}
+	if fac._type == LifeTypeError {
+		return NewWebError(500, "Factory need extend from one of interface FactoryStandalone/FactoryStateful/FactoryStateless")
+	}
+	f.factorys[v.Type()] = fac
 	return nil
 }
