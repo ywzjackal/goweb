@@ -110,7 +110,7 @@ found:
 		}
 	default:
 	}
-	return fac._selfValue, err
+	return target, err
 }
 
 func (f *factoryContainer) lookupStandalone(rt reflect.Type) (reflect.Value, WebError) {
@@ -127,13 +127,14 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 		//		t   reflect.Type  = reflect.TypeOf(faci)
 		v   reflect.Value = reflect.ValueOf(faci)
 		fac *factory      = &factory{
-			_selfValue: v,
+//			_selfValue: v,
 		}
 		facVal reflect.Value = reflect.ValueOf(fac)
 	)
 	for v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
+	fac._selfValue = v;
 	for i := 0; i < v.NumField(); i++ {
 		stfd := v.Type().Field(i) // struct field
 		fdva := v.Field(i)        // field value

@@ -60,7 +60,7 @@ func RegisterView(name string, view View) {
 //
 // View 是视图的定级接口组件，所有的自定义视图组件必须实现此接口
 type View interface {
-	Render(Controller2, ...interface{}) WebError
+	Render(Controller, ...interface{}) WebError
 }
 
 type view struct {
@@ -87,7 +87,7 @@ type viewJson struct {
 	*view
 }
 
-func (v *view) Render(c Controller2, args ...interface{}) WebError {
+func (v *view) Render(c Controller, args ...interface{}) WebError {
 	//	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
 	//	_, err := c.Context().ResponseWriter().Write(raw)
 	//	if err != nil {
@@ -96,7 +96,7 @@ func (v *view) Render(c Controller2, args ...interface{}) WebError {
 	return nil
 }
 
-func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {
+func (v *viewHtml) Render(c Controller, args ...interface{}) WebError {
 	var (
 		name          = strings.ToLower(c.Context().Request().URL.Path)
 		err  WebError = nil
@@ -133,7 +133,7 @@ func (v *viewHtml) Render(c Controller2, args ...interface{}) WebError {
 	return err
 }
 
-func (v *viewJson) Render(c Controller2, args ...interface{}) WebError {
+func (v *viewJson) Render(c Controller, args ...interface{}) WebError {
 	if len(args) == 1 {
 		b, err := json.MarshalIndent(c, "", " ")
 		if err != nil {

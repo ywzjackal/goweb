@@ -176,24 +176,47 @@ func generateSessionIdByRequest(req *http.Request) string {
 	return base64.StdEncoding.EncodeToString(bytes)
 }
 
-func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *actionWrap {
-	aw := &actionWrap{
-		index:          index,
-		actionName:     method.Name,
-		name:           strings.ToLower(method.Name),
-		method:         method,
-		parameters:     make([]reflect.Value, method.Type.NumIn()),
-		parameterTypes: make([]reflect.Type, method.Type.NumIn()),
-		context:        reflect.Value{},
-		urlParameters:  []string{},
+func render(rets []reflect.Value, c Controller) WebError {
+	if len(rets) == 0 {
+		return NewWebError(1, "Controller Action need return a ViewType like `html`,`json`.")
 	}
-	for i := 0; i < method.Type.NumIn(); i++ {
-		t := method.Type.In(i)
-		aw.parameterTypes[i] = t
+	viewType, ok := rets[0].Interface().(string)
+	if !ok {
+		return NewWebError(1, "Controller Action need return a ViewType of string! but got `%s`", rets[0].Type())
 	}
-	aw.parameters[0] = caller
-	return aw
+	view, isexist := views[viewType]
+	if !isexist {
+		return NewWebError(1, "Unknow ViewType :%s", viewType)
+	}
+	interfaces := make([]interface{}, len(rets)-1, len(rets)-1)
+	for i, ret := range rets[1:] {
+		interfaces[i] = ret.Interface()
+	}
+	err := view.Render(c, interfaces...)
+	if err != nil {
+		return err.Append(500, "Fail to render view %s, data:%+v", viewType, interfaces)
+	}
+	return nil
 }
+
+//func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *actionWrap {
+//	aw := &actionWrap{
+//		index:          index,
+//		actionName:     method.Name,
+//		name:           strings.ToLower(method.Name),
+//		method:         method,
+//		parameters:     make([]reflect.Value, method.Type.NumIn()),
+//		parameterTypes: make([]reflect.Type, method.Type.NumIn()),
+//		context:        reflect.Value{},
+//		urlParameters:  []string{},
+//	}
+//	for i := 0; i < method.Type.NumIn(); i++ {
+//		t := method.Type.In(i)
+//		aw.parameterTypes[i] = t
+//	}
+//	aw.parameters[0] = caller
+//	return aw
+//}
 
 //func initControllerWrap(c Controller) *controllerWrap {
 //	var (
