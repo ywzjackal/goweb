@@ -71,6 +71,7 @@ func (f *factoryContainer) Lookup(rt reflect.Type, ctx Context) (reflect.Value, 
 	for rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
+finding:
 	fac, isexist := f.factorys[rt]
 	if isexist {
 		goto found
@@ -83,12 +84,22 @@ func (f *factoryContainer) Lookup(rt reflect.Type, ctx Context) (reflect.Value, 
 			}
 		}
 	}
-	return target, NewWebError(500, "Not found Factory:%s", rt)
+	// create new one!
+	Log.Printf("Auto Register Factory `%s`", rt)
+	target = reflect.New(rt)
+	if err = f.Register(target.Interface()); err != nil {
+		Err.Printf("Auto Register Factory `%s` Fail!", rt)
+		return target, err.Append(500, "Auto Create Factory:%s Fail!", rt)
+	}
+	goto finding
 found:
 	switch fac._type {
 	case LifeTypeStandalone:
 		target = fac._selfValue
 	case LifeTypeStateful:
+		if ctx == nil {
+			return target, NewWebError(500, "Lookup Stateful Factory `%s` on non Context condition!", fac._selfValue.Type())
+		}
 		mem := ctx.Session().MemMap()
 		_target, isexist := mem["__fac_"+rt.Name()]
 		if !isexist {
@@ -110,31 +121,31 @@ found:
 		}
 	default:
 	}
-	return target, err
-}
-
-func (f *factoryContainer) lookupStandalone(rt reflect.Type) (reflect.Value, WebError) {
-	var (
-		err    WebError      = nil // error
-		target reflect.Value       // target which we are looking for
-	)
-
+	if err = resolveInjections(f, ctx, fac._stateful); err != nil {
+		return target, err.Append(500, "Fail to resolve injection for factory `%s`", fac._selfValue.Type())
+	}
+	if err = resolveInjections(f, ctx, fac._stateless); err != nil {
+		return target, err.Append(500, "Fail to resolve injection for factory `%s`", fac._selfValue.Type())
+	}
 	return target, err
 }
 
 func (f *factoryContainer) initFactory(faci Factory) WebError {
 	var (
-		//		t   reflect.Type  = reflect.TypeOf(faci)
+		t   reflect.Type  = reflect.TypeOf(faci)
 		v   reflect.Value = reflect.ValueOf(faci)
 		fac *factory      = &factory{
-//			_selfValue: v,
+		//			_selfValue: v,
 		}
 		facVal reflect.Value = reflect.ValueOf(fac)
 	)
 	for v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
-	fac._selfValue = v;
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	fac._selfValue = v
 	for i := 0; i < v.NumField(); i++ {
 		stfd := v.Type().Field(i) // struct field
 		fdva := v.Field(i)        // field value
@@ -170,11 +181,11 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 			switch factoryType(stfd.Type) {
 			case LifeTypeStandalone:
 				// look up standalone factory when initialize
-				_v, err := f.lookupStandalone(stfd.Type)
+				_v, err := f.Lookup(stfd.Type, nil)
 				if err != nil {
 					return err.Append(500, "Fail to initialize `%s`'s field `%s`", v.Type(), stfd.Type)
 				}
-				fdva.Set(_v)
+				fdva.Set(_v.Addr())
 				fac._standalone = append(fac._stateful, injectNode{
 					id: i,
 					tp: stfd.Type,
@@ -201,5 +212,11 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 		return NewWebError(500, "Factory need extend from one of interface FactoryStandalone/FactoryStateful/FactoryStateless")
 	}
 	f.factorys[v.Type()] = fac
+	intFunc := v.Addr().MethodByName("Init")
+	if intFunc.IsValid() {
+		intFunc.Call([]reflect.Value{})
+	} else {
+		Log.Printf("`%s` doesn't have method `Init`!", v.Type())
+	}
 	return nil
 }

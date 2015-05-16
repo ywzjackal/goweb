@@ -27,8 +27,6 @@ type ControllerStateful interface {
 type Controller interface {
 	// Context() return current http context
 	Context() Context
-	// SetContext used by framewrok, no use for user
-	SetContext(Context)
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() LifeType
 	// Call() by request url prefix, if success, []reflect.value contain the method
@@ -57,10 +55,6 @@ type controllerExample struct {
 // Context() return the context of client request
 func (c *controller2) Context() Context {
 	return c._ctx
-}
-
-func (c *controller2) SetContext(ctx Context) {
-	c._ctx = ctx
 }
 
 // Type() return the controller type,one of FactoryTypeStandalone
@@ -175,25 +169,21 @@ func (c *controller2) Call(mtd string, ctx Context) ([]reflect.Value, WebError) 
 	if err := resolveUrlParameters(c, &c._selfValue); err != nil {
 		return nil, err.Append(500, "Fail to resolve controler `%s` url parameters!", c._selfValue.Interface())
 	}
-	if err := resolveInjections(c, c._stateless); err != nil {
+	if err := resolveInjections(c.Context().FactoryContainer(), c.Context(), c._stateless); err != nil {
 		return nil, err.Append(500, "Fail to resolve stateless injection for %s", c._selfValue.Interface())
 	}
-	if err := resolveInjections(c, c._stateful); err != nil {
+	if err := resolveInjections(c.Context().FactoryContainer(), c.Context(), c._stateful); err != nil {
 		return nil, err.Append(500, "Fail to resolve stateful injection for %s", c._selfValue.Interface())
 	}
 	rt := act.Call([]reflect.Value{c._selfValue})
 	return rt, nil
 }
 
-func resolveInjections(c *controller2, nodes []injectNode) WebError {
-	var (
-		ctx      = c.Context()
-		factorys = ctx.FactoryContainer()
-	)
+func resolveInjections(factorys FactoryContainer, ctx Context, nodes []injectNode) WebError {
 	for _, node := range nodes {
 		v, err := factorys.Lookup(node.tp, ctx)
 		if err != nil {
-			return err.Append(500, "Fail to inject `%s` to controller '%s'", node.tp, c)
+			return err.Append(500, "Fail to inject `%s`", node.tp)
 		}
 		node.va.Set(v)
 	}
