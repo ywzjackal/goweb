@@ -39,7 +39,7 @@ func isInterfaceController(itfs interface{}) WebError {
 	var (
 		t = reflect.TypeOf(itfs)
 	)
-	_, ok := itfs.(*controller2)
+	_, ok := itfs.(*controller)
 	if !ok {
 		return NewWebError(500, "`%s` is not based on goweb.Controller!", t)
 	}
@@ -199,46 +199,87 @@ func render(rets []reflect.Value, c Controller) WebError {
 	return nil
 }
 
-//func initActionWrap(index int, method *reflect.Method, caller reflect.Value) *actionWrap {
-//	aw := &actionWrap{
-//		index:          index,
-//		actionName:     method.Name,
-//		name:           strings.ToLower(method.Name),
-//		method:         method,
-//		parameters:     make([]reflect.Value, method.Type.NumIn()),
-//		parameterTypes: make([]reflect.Type, method.Type.NumIn()),
-//		context:        reflect.Value{},
-//		urlParameters:  []string{},
-//	}
-//	for i := 0; i < method.Type.NumIn(); i++ {
-//		t := method.Type.In(i)
-//		aw.parameterTypes[i] = t
-//	}
-//	aw.parameters[0] = caller
-//	return aw
-//}
+func resolveInjections(factorys FactoryContainer, ctx Context, nodes []injectNode) WebError {
+	for _, node := range nodes {
+		v, err := factorys.Lookup(node.tp, ctx)
+		if err != nil {
+			return err.Append(500, "Fail to inject `%s`", node.tp)
+		}
+		if !v.IsValid() {
+			return NewWebError(500, "inject invalid value to `%s`", node.va)
+		}
+		if v.Kind() != reflect.Ptr {
+			return NewWebError(500, "inject invalid type of %s, need Ptr", v.Kind())
+		}
+		node.va.Set(v)
+	}
+	return nil
+}
 
-//func initControllerWrap(c Controller) *controllerWrap {
-//	var (
-//		v    = reflect.ValueOf(c)
-//		t    = reflect.TypeOf(c)
-//		name = t.Elem().Name()
-//	)
-//	wrap := &controllerWrap{
-//		controllerName: t.Name(),
-//		name:           strings.ToLower(name),
-//		fullName:       t.PkgPath() + t.Name(),
-//		actions:        make(map[string]*actionWrap),
-//	}
-//	for i := 0; i < t.NumMethod(); i++ {
-//		m := t.Method(i)
-//		if strings.HasPrefix(m.Name, ActionPrefix) {
-//			aw := initActionWrap(i, &m, v)
-//			wrap.actions[aw.name] = aw
-//			//			Log.Printf("Init `%s` : `%s`", wrap.name, m.Name)
-//		} else {
-//			//			Log.Printf("Igno `%s` : `%s`", wrap.name, m.Name)
-//		}
-//	}
-//	return wrap
-//}
+func resolveUrlParameters(c *controller, target *reflect.Value) WebError {
+	req := c._ctx.Request()
+	if err := req.ParseForm(); err != nil {
+		return NewWebError(500, "Fail to ParseForm with path:%s,%s", req.URL.String(), err.Error())
+	}
+	for key, node := range c._querys {
+		strs := req.Form[key]
+		if len(strs) == 0 {
+			continue
+		}
+		switch node.tp.Kind() {
+		case reflect.String:
+			node.va.SetString(strs[0])
+		case reflect.Bool:
+			b, err := strconv.ParseBool(strs[0])
+			if err != nil {
+				Err.Printf("Fail to convent parameters!\r\nField `%s`(bool) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				continue
+			}
+			node.va.SetBool(b)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			num, err := strconv.ParseInt(strs[0], 10, 0)
+			if err != nil {
+				Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				continue
+			}
+			node.va.SetInt(num)
+		case reflect.Float32, reflect.Float64:
+			f, err := strconv.ParseFloat(strs[0], 0)
+			if err != nil {
+				Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				continue
+			}
+			node.va.SetFloat(f)
+		case reflect.Slice:
+			targetType := node.tp.Elem()
+			lens := len(strs)
+			values := reflect.MakeSlice(reflect.SliceOf(targetType), lens, lens)
+			switch targetType.Kind() {
+			case reflect.String:
+				values = reflect.ValueOf(strs)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					intValue, _ := strconv.ParseInt(strs[j], 10, 0)
+					v.SetInt(intValue)
+				}
+			case reflect.Float32, reflect.Float64:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					floatValue, _ := strconv.ParseFloat(strs[j], 0)
+					v.SetFloat(floatValue)
+				}
+			case reflect.Bool:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					boolValue, _ := strconv.ParseBool(strs[j])
+					v.SetBool(boolValue)
+				}
+			}
+			node.va.Set(values)
+		default:
+			return NewWebError(500, "Unresolveable url parameter type `%s`", node.tp)
+		}
+	}
+	return nil
+}

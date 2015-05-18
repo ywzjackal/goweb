@@ -61,6 +61,7 @@ func factoryType(t reflect.Type) LifeType {
 type factory struct {
 	Factory
 	_selfValue reflect.Value
+	_intFunc   reflect.Value
 	//	_querys     map[string]injectNode // query parameters
 	_standalone []injectNode // factory which need be injected after first initialized
 	_stateful   []injectNode // factory which need be injected from session before called
@@ -69,3 +70,10 @@ type factory struct {
 	//	_actions    map[string]*reflect.Value
 }
 
+func (f *factory) Init() {
+	if f._intFunc.IsValid() {
+		f._intFunc.Call([]reflect.Value{})
+	} else {
+		Log.Printf("`%s` doesn't have method `Init`!", f._selfValue.Type())
+	}
+}

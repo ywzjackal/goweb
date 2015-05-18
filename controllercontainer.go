@@ -3,7 +3,7 @@ package goweb
 import "reflect"
 
 // ControllerContainer is a container to store controllers
-type ControllerContainer2 interface {
+type ControllerContainer interface {
 	Init(FactoryContainer) WebError
 	// Register a new controller to container
 	// prefix is url prefix
@@ -14,19 +14,19 @@ type ControllerContainer2 interface {
 }
 
 // controllerContainer is buildin default controller container
-type controllerContainer2 struct {
-	ControllerContainer2
+type controllerContainer struct {
+	ControllerContainer
 	ctls     map[string]Controller
 	factorys FactoryContainer
 }
 
-func (c *controllerContainer2) Init(factorys FactoryContainer) WebError {
+func (c *controllerContainer) Init(factorys FactoryContainer) WebError {
 	c.ctls = make(map[string]Controller)
 	c.factorys = factorys
 	return nil
 }
 
-func (c *controllerContainer2) Register(prefix string, ctl Controller) {
+func (c *controllerContainer) Register(prefix string, ctl Controller) {
 	_, exist := c.ctls[prefix]
 	if exist {
 		panic("URL Prefix:" + prefix + " register duplicated")
@@ -38,10 +38,10 @@ func (c *controllerContainer2) Register(prefix string, ctl Controller) {
 	c.ctls[prefix] = ctl
 }
 
-func (c *controllerContainer2) Get(prefix string, ctx Context) (Controller, WebError) {
+func (c *controllerContainer) Get(prefix string, ctx Context) (Controller, WebError) {
 	var (
 		ctl Controller = nil
-		ok  bool        = false
+		ok  bool       = false
 	)
 	ctl, ok = c.ctls[prefix]
 	if !ok || ctl == nil {
@@ -56,8 +56,8 @@ func (c *controllerContainer2) Get(prefix string, ctx Context) (Controller, WebE
 		}
 	case LifeTypeStateful:
 		mem := ctx.Session().MemMap()
-		itfs, isexist := mem["__ctl_"+prefix]
-		if !isexist {
+		itfs, ok := mem["__ctl_"+prefix]
+		if !ok {
 			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(Controller)
 			if err := initController(ctl, ctx.FactoryContainer()); err != nil {
 				return nil, err.Append(500, "Fail to auto initialize stateful controller!")

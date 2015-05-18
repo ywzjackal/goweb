@@ -48,18 +48,22 @@ var emptyValue = reflect.ValueOf(0)
 
 func (f *factoryContainer) Register(faci Factory) WebError {
 	var (
-		t = reflect.TypeOf(faci)
+		t            = reflect.TypeOf(faci)
+		fac *factory = nil
+		err WebError = nil
+		ok  bool     = false
 	)
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	_, ok := f.factorys[t]
+	fac, ok = f.factorys[t]
 	if ok {
 		return NewWebError(500, "Regist factory `%s` duplicate!", t.String())
 	}
-	if err := f.initFactory(faci); err != nil {
+	if fac, err = f.initFactory(faci); err != nil {
 		return err.Append(500, "Fail to Register factory `%s`!", t.String())
 	}
+	f.factorys[t] = fac
 	return nil
 }
 
@@ -95,28 +99,28 @@ finding:
 found:
 	switch fac._type {
 	case LifeTypeStandalone:
-		target = fac._selfValue
 	case LifeTypeStateful:
 		if ctx == nil {
 			return target, NewWebError(500, "Lookup Stateful Factory `%s` on non Context condition!", fac._selfValue.Type())
 		}
 		mem := ctx.Session().MemMap()
-		_target, isexist := mem["__fac_"+rt.Name()]
-		if !isexist {
+		itfs, ok := mem["__fac_"+rt.Name()]
+		if !ok {
 			target = reflect.New(fac._selfValue.Type())
-			if err := f.initFactory(target.Interface().(Factory)); err != nil {
-				return target, err.Append(500, "create stateful factory `%s` fail!", rt)
+			faci := target.Interface().(Factory)
+			if fac, err = f.initFactory(faci); err != nil {
+				return target, err.Append(500, "create stateful factory `%s` fail!", rt.Name())
 			}
-			mem["__fac_"+rt.Name()] = target
+			mem["__fac_"+rt.Name()] = fac
 		} else {
-			target, ok := _target.(reflect.Value)
+			fac, ok = itfs.(*factory)
 			if !ok {
 				return target, NewWebError(500, "can not restore stateful factory `%s` from session!", rt)
 			}
 		}
 	case LifeTypeStateless:
 		target = reflect.New(reflect.TypeOf(fac._selfValue.Type()).Elem())
-		if err := f.initFactory(target.Interface().(Factory)); err != nil {
+		if fac, err = f.initFactory(target.Interface().(Factory)); err != nil {
 			return target, err.Append(500, "create stateless factory `%s` fail!", rt)
 		}
 	default:
@@ -127,10 +131,10 @@ found:
 	if err = resolveInjections(f, ctx, fac._stateless); err != nil {
 		return target, err.Append(500, "Fail to resolve injection for factory `%s`", fac._selfValue.Type())
 	}
-	return target, err
+	return fac._selfValue.Addr(), err
 }
 
-func (f *factoryContainer) initFactory(faci Factory) WebError {
+func (f *factoryContainer) initFactory(faci Factory) (*factory, WebError) {
 	var (
 		t   reflect.Type  = reflect.TypeOf(faci)
 		v   reflect.Value = reflect.ValueOf(faci)
@@ -145,6 +149,7 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
+	fac._intFunc = v.Addr().MethodByName("Init")
 	fac._selfValue = v
 	for i := 0; i < v.NumField(); i++ {
 		stfd := v.Type().Field(i) // struct field
@@ -166,9 +171,8 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 				switch {
 				case facVal.Type().AssignableTo(fdva.Type()):
 					fdva.Set(facVal)
+					Log.Printf("Assign `%s` to `%s` of `%s`:`%d`", facVal.Type(), fdva.Type(), v.Type(), i)
 				default:
-					Log.Print(facVal.Type(), fdva.Type())
-					return NewWebError(500, "interface %s of controller %s can not be assignable!", fdva.Type(), facVal.Type())
 				}
 			}
 			continue
@@ -183,9 +187,9 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 				// look up standalone factory when initialize
 				_v, err := f.Lookup(stfd.Type, nil)
 				if err != nil {
-					return err.Append(500, "Fail to initialize `%s`'s field `%s`", v.Type(), stfd.Type)
+					return nil, err.Append(500, "Fail to initialize `%s`'s field `%s`", v.Type(), stfd.Type)
 				}
-				fdva.Set(_v.Addr())
+				fdva.Set(_v)
 				fac._standalone = append(fac._stateful, injectNode{
 					id: i,
 					tp: stfd.Type,
@@ -204,19 +208,24 @@ func (f *factoryContainer) initFactory(faci Factory) WebError {
 					va: &fdva,
 				})
 			default:
-				return NewWebError(500, "Factory `%s` type not specified, need specified by FactoryStandalone/FactoryStateless/FactoryStateful")
+				return nil, NewWebError(500, "Factory `%s` type not specified, need specified by FactoryStandalone/FactoryStateless/FactoryStateful", stfd.Type)
 			}
 		}
 	}
-	if fac._type == LifeTypeError {
-		return NewWebError(500, "Factory need extend from one of interface FactoryStandalone/FactoryStateful/FactoryStateless")
+	switch fac._type {
+	case LifeTypeStateless:
+		if len(fac._stateful) != 0 {
+			return nil, NewWebError(500, "Stateless `%s` can not inject stateful field `%s`", fac._selfValue.Type(), fac._stateful[0].tp)
+		}
+	case LifeTypeStandalone:
+		if len(fac._stateful) != 0 {
+			return nil, NewWebError(500, "Standalone `%s` can not inject stateful field `%s`", fac._selfValue.Type(), fac._stateful[0].tp)
+		}
+		fac.Init()
+	case LifeTypeStateful:
+	case LifeTypeError:
+		return nil, NewWebError(500, "Factory need extend from one of interface FactoryStandalone/FactoryStateful/FactoryStateless")
 	}
-	f.factorys[v.Type()] = fac
-	intFunc := v.Addr().MethodByName("Init")
-	if intFunc.IsValid() {
-		intFunc.Call([]reflect.Value{})
-	} else {
-		Log.Printf("`%s` doesn't have method `Init`!", v.Type())
-	}
-	return nil
+
+	return fac, nil
 }

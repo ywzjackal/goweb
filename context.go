@@ -10,6 +10,7 @@ type Context interface {
 	FactoryContainer() FactoryContainer
 	SetTitle(string)
 	Session() Session
+	Error() WebError
 }
 
 type context struct {
@@ -19,6 +20,7 @@ type context struct {
 	responseWriter   http.ResponseWriter
 	factoryContainer FactoryContainer
 	session          Session
+	err              WebError
 }
 
 func (c *context) Request() *http.Request {
@@ -35,4 +37,8 @@ func (c *context) FactoryContainer() FactoryContainer {
 
 func (c *context) Session() Session {
 	return c.session
+}
+
+func (c *context) Error() WebError {
+	return c.err
 }
