@@ -45,7 +45,7 @@ func (c *controllerContainer) Get(prefix string, ctx Context) (Controller, WebEr
 	)
 	ctl, ok = c.ctls[prefix]
 	if !ok || ctl == nil {
-		return nil, NewWebError(404, "Controller not found!")
+		return nil, NewWebError(404, "Controller `%s` not found!", prefix)
 	}
 	switch ctl.Type() {
 	case LifeTypeStandalone:

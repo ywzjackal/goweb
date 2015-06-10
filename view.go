@@ -22,6 +22,10 @@ var (
 	views = make(map[string]View)
 	// never mind! -.-
 	rootTemplate = template.New("")
+	//
+	TemplateFuncs = template.FuncMap{
+		"httpStatusText": http.StatusText,
+	}
 )
 
 // Initialize buildin view components
@@ -38,7 +42,7 @@ func ReloadTemplates() {
 	if TemplatePosition == "" {
 		panic("Please set `goweb.TemplatePosition to path of templates directory!`")
 	}
-	rootTemplate = template.New("")
+	rootTemplate = template.New("").Funcs(TemplateFuncs)
 	rootTemplate = template.Must(rootTemplate.Delims(DelimsLeft, DelimsRight).
 		ParseGlob(TemplatePosition + "/*"))
 }

@@ -40,5 +40,8 @@ func (c *context) Session() Session {
 }
 
 func (c *context) Error() WebError {
+	if c.err == nil {
+		c.err = NewWebError(0, "SUCCESS")
+	}
 	return c.err
 }

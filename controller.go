@@ -1,6 +1,7 @@
 package goweb
 
 import (
+	"net/http"
 	"reflect"
 	"strings"
 )
@@ -191,17 +192,17 @@ func (c *controller) Call(mtd string, ctx Context) ([]reflect.Value, WebError) {
 	if !exist {
 		act, exist = c._actions[""]
 		if !exist {
-			return nil, NewWebError(404, "Action `%s` not found!", mtd)
+			return nil, NewWebError(http.StatusMethodNotAllowed, "Action `%s` not found!", mtd)
 		}
 	}
 	if err := resolveUrlParameters(c, &c._selfValue); err != nil {
-		return nil, err.Append(500, "Fail to resolve controler `%s` url parameters!", c._selfValue)
+		return nil, err.Append(http.StatusInternalServerError, "Fail to resolve controler `%s` url parameters!", c._selfValue)
 	}
 	if err := resolveInjections(ctx.FactoryContainer(), ctx, c._stateless); err != nil {
-		return nil, err.Append(500, "Fail to resolve stateless injection for %s", c._selfValue)
+		return nil, err.Append(http.StatusInternalServerError, "Fail to resolve stateless injection for %s", c._selfValue)
 	}
 	if err := resolveInjections(ctx.FactoryContainer(), ctx, c._stateful); err != nil {
-		return nil, err.Append(500, "Fail to resolve stateful injection for %s", c._selfValue)
+		return nil, err.Append(http.StatusInternalServerError, "Fail to resolve stateful injection for %s", c._selfValue)
 	}
 	rt := act.Call([]reflect.Value{c._selfValue})
 	return rt, nil
