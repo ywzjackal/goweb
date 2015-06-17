@@ -8,32 +8,60 @@ import (
 	"time"
 )
 
+const (
+	__router_name = "goweb.router"
+)
+
 var (
 	DefaultControllerName = "Default"
 	DefaultActionName     = "Default"
+	__gloabl_goweb_router = &router{}
 )
 
-type Router interface {
-	http.Handler
-	Init() WebError
-	FactoryContainer() FactoryContainer
-	ControllerContainer() ControllerContainer
-	MemStorage() Storage
-}
-
-func NewRouter() Router {
-	return &router{}
+func init() {
+	RegisterRouterCreator(__router_name, __gloabl_goweb_router.New)
 }
 
 type router struct {
 	http.Handler
-	controllers controllerContainer
-	factorys    factoryContainer
-	StorageMemory
+	controllers ControllerContainer
+	factorys    FactoryContainer
+	storage     Storage
+}
+
+func (r *router) New(scope string, args ...interface{}) Router {
+	router := &router{}
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case ControllerContainer:
+			router.controllers = v
+		case FactoryContainer:
+			router.factorys = v
+		case Storage:
+			router.storage = v
+		default:
+			panic(fmt.Sprintf("Invalid argument to create router! %s", arg))
+		}
+	}
+	if router.storage == nil {
+		panic("need set an memory storage to router!")
+	}
+	if router.controllers == nil {
+		panic("need set an controllers container to router!")
+	}
+	if router.factorys == nil {
+		panic("need set an factorys container to router!")
+	}
+
+	return router
+}
+
+func (r *router) Name() string {
+	return __router_name
 }
 
 func (r *router) Init() WebError {
-	if err := r.StorageMemory.Init(); err != nil {
+	if err := r.MemStorage().Init(); err != nil {
 		return err
 	}
 	if err := r.FactoryContainer().Init(); err != nil {
@@ -46,15 +74,15 @@ func (r *router) Init() WebError {
 }
 
 func (r *router) ControllerContainer() ControllerContainer {
-	return &r.controllers
+	return r.controllers
 }
 
 func (r *router) FactoryContainer() FactoryContainer {
-	return &r.factorys
+	return r.factorys
 }
 
 func (r *router) MemStorage() Storage {
-	return &r.StorageMemory
+	return r.storage
 }
 
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -73,7 +101,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		_err WebError
 	)
 
-	session.Init(res, req, r)
+	session.Init(res, req, r.storage)
 
 	ctl, err := r.controllers.Get(urlprefix, ctx)
 	if err != nil || ctl == nil {

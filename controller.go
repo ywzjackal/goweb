@@ -24,18 +24,6 @@ type ControllerStateful interface {
 	Controller
 }
 
-type Controller interface {
-	// Context() return current http context
-	Context() Context
-	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
-	Type() LifeType
-	// Call() by request url prefix, if success, []reflect.value contain the method
-	// parameters out, else WebError will be set.
-	Call(mtd string, ctx Context) ([]reflect.Value, WebError)
-	// String()
-	String() string
-}
-
 type controller struct {
 	Controller
 	_selfValue  reflect.Value

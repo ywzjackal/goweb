@@ -4,15 +4,6 @@ import (
 	"net/http"
 )
 
-type Context interface {
-	Request() *http.Request
-	ResponseWriter() http.ResponseWriter
-	FactoryContainer() FactoryContainer
-	SetTitle(string)
-	Session() Session
-	Error() WebError
-}
-
 type context struct {
 	FactoryStateless
 	Context
