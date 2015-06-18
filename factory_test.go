@@ -27,8 +27,7 @@ func (f *FactoryTest1) Init() {
 }
 
 func Test_Factory(t *testing.T) {
-	fc := &factoryContainer{}
-	fc.Init()
+	fc := NewFactoryContainer()
 	if err := fc.Register(&FactoryTest1{
 		Num: 1,
 	}); err != nil {
@@ -53,8 +52,7 @@ func Test_Factory(t *testing.T) {
 }
 
 func Test_Factory2(t *testing.T) {
-	fc := &factoryContainer{}
-	fc.Init()
+	fc := NewFactoryContainer()
 
 	v, err := fc.Lookup(reflect.TypeOf(&FactoryTest1{}), nil)
 	if err != nil {

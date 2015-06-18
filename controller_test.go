@@ -40,8 +40,10 @@ func (f *ControllerCounter) ActionGet() string {
 }
 
 func startWsServer() {
-	router := &router{}
-	router.Init()
+	memStorage := NewStorageMemory()
+	factoryContainer := NewFactoryContainer()
+	controllerContainer := NewControllerContainer(factoryContainer)
+	router := NewRouter(controllerContainer, factoryContainer, memStorage)
 	router.FactoryContainer().Register(&FactoryCounter{
 		count: 2,
 	})
@@ -83,7 +85,7 @@ func Test_Controller(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		if n != num + 2 {
+		if n != num+2 {
 			t.Error(fmt.Errorf("Content Error!%d", n))
 		} else {
 			num += 1

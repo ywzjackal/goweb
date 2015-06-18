@@ -40,17 +40,23 @@ func (s *storageValueWrap) Unlock() {
 	s.mutex.Unlock()
 }
 
-type StorageMemory struct {
+type storageMemory struct {
 	Storage
 	storage map[string]*storageValueWrap
 }
 
-func (s *StorageMemory) Init() WebError {
+func NewStorageMemory() Storage {
+	return &storageMemory{
+		storage: make(map[string]*storageValueWrap),
+	}
+}
+
+func (s *storageMemory) Init() WebError {
 	s.storage = make(map[string]*storageValueWrap)
 	return nil
 }
 
-func (s *StorageMemory) Get(key string) interface{} {
+func (s *storageMemory) Get(key string) interface{} {
 	storageValue, ok := s.storage[key]
 	if !ok {
 		return nil
@@ -61,14 +67,14 @@ func (s *StorageMemory) Get(key string) interface{} {
 	return storageValue.Value
 }
 
-func (s *StorageMemory) Set(key string, value interface{}) {
+func (s *storageMemory) Set(key string, value interface{}) {
 	if s.storage == nil {
 		s.storage = make(map[string]*storageValueWrap)
 	}
 	s.SetWithLife(key, value, StorageDefaultLife)
 }
 
-func (s *StorageMemory) SetWithLife(key string, value interface{}, life time.Duration) {
+func (s *storageMemory) SetWithLife(key string, value interface{}, life time.Duration) {
 	if s.storage == nil {
 		s.storage = make(map[string]*storageValueWrap)
 	}
@@ -85,7 +91,7 @@ func (s *StorageMemory) SetWithLife(key string, value interface{}, life time.Dur
 	}
 }
 
-func (s *StorageMemory) Remove(key string) {
+func (s *storageMemory) Remove(key string) {
 	if s.storage == nil {
 		s.storage = make(map[string]*storageValueWrap)
 	}

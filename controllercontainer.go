@@ -4,7 +4,6 @@ import "reflect"
 
 // ControllerContainer is a container to store controllers
 type ControllerContainer interface {
-	Init(FactoryContainer) WebError
 	// Register a new controller to container
 	// prefix is url prefix
 	Register(prefix string, ctl Controller)
@@ -13,17 +12,19 @@ type ControllerContainer interface {
 	Get(prefix string, ctx Context) (Controller, WebError)
 }
 
+func NewControllerContainer(f FactoryContainer) ControllerContainer {
+	c := &controllerContainer{
+		factorys: f,
+		ctls:     make(map[string]Controller),
+	}
+	return c
+}
+
 // controllerContainer is buildin default controller container
 type controllerContainer struct {
 	ControllerContainer
 	ctls     map[string]Controller
 	factorys FactoryContainer
-}
-
-func (c *controllerContainer) Init(factorys FactoryContainer) WebError {
-	c.ctls = make(map[string]Controller)
-	c.factorys = factorys
-	return nil
 }
 
 func (c *controllerContainer) Register(prefix string, ctl Controller) {

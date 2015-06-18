@@ -38,10 +38,10 @@ type factoryContainer struct {
 	factorys map[reflect.Type]*factory
 }
 
-func (f *factoryContainer) Init() WebError {
-	Log.Printf("INIT FC...")
-	f.factorys = make(map[reflect.Type]*factory)
-	return nil
+func NewFactoryContainer() FactoryContainer {
+	return &factoryContainer{
+		factorys: make(map[reflect.Type]*factory),
+	}
 }
 
 var emptyValue = reflect.ValueOf(0)

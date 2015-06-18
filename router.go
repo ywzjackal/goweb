@@ -18,10 +18,6 @@ var (
 	__gloabl_goweb_router = &router{}
 )
 
-func init() {
-	RegisterRouterCreator(__router_name, __gloabl_goweb_router.New)
-}
-
 type router struct {
 	http.Handler
 	controllers ControllerContainer
@@ -29,48 +25,16 @@ type router struct {
 	storage     Storage
 }
 
-func (r *router) New(scope string, args ...interface{}) Router {
-	router := &router{}
-	for _, arg := range args {
-		switch v := arg.(type) {
-		case ControllerContainer:
-			router.controllers = v
-		case FactoryContainer:
-			router.factorys = v
-		case Storage:
-			router.storage = v
-		default:
-			panic(fmt.Sprintf("Invalid argument to create router! %s", arg))
-		}
+func NewRouter(c ControllerContainer, f FactoryContainer, s Storage) Router {
+	return &router{
+		controllers: c,
+		factorys:    f,
+		storage:     s,
 	}
-	if router.storage == nil {
-		panic("need set an memory storage to router!")
-	}
-	if router.controllers == nil {
-		panic("need set an controllers container to router!")
-	}
-	if router.factorys == nil {
-		panic("need set an factorys container to router!")
-	}
-
-	return router
 }
 
 func (r *router) Name() string {
 	return __router_name
-}
-
-func (r *router) Init() WebError {
-	if err := r.MemStorage().Init(); err != nil {
-		return err
-	}
-	if err := r.FactoryContainer().Init(); err != nil {
-		return err
-	}
-	if err := r.ControllerContainer().Init(r.FactoryContainer()); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (r *router) ControllerContainer() ControllerContainer {

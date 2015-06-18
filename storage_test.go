@@ -8,7 +8,7 @@ import (
 
 func Test_StorageMemory(t *testing.T) {
 	StorageDefaultLife = time.Second * 1
-	storage := &StorageMemory{}
+	storage := &storageMemory{}
 	for i := 0; i < 1000; i++ {
 		key := fmt.Sprintf("string_%d", i)
 		storage.Set(key, "haha")

@@ -105,9 +105,9 @@ func (v *viewHtml) Render(c Controller, args ...interface{}) WebError {
 		name          = strings.ToLower(c.Context().Request().URL.Path)
 		err  WebError = nil
 	)
-	if Debug {
-		ReloadTemplates()
-	}
+	//	if Debug {
+	//		ReloadTemplates()
+	//	}
 	buffer := bytes.Buffer{}
 	writer := bufio.NewWriter(&buffer)
 	switch len(args) {
