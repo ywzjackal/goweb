@@ -77,14 +77,18 @@ func (e *gowebError) Error() string {
 }
 
 func (e *gowebError) ErrorAll() string {
-	short := e.file
-	for i := len(e.file) - 1; i > 0; i-- {
-		if e.file[i] == '/' {
-			short = e.file[i+1:]
-			break
+	var str string
+	for _, ce := range e.Children() {
+		short := ce.File()
+		for i := len(short) - 1; i > 0; i-- {
+			if short[i] == '/' {
+				short = short[i+1:]
+				break
+			}
 		}
+		str += fmt.Sprintf("%s:%d %s\n", short, ce.Line(), ce.Error())
 	}
-	return fmt.Sprintf("%s:%d %s", short, e.line, e.msg)
+	return str
 }
 
 func (e *gowebError) Children() []WebError {

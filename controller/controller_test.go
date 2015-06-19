@@ -1,4 +1,4 @@
-package goweb
+package controller
 
 import (
 	"fmt"
@@ -10,6 +10,13 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/ywzjackal/goweb"
+	"github.com/ywzjackal/goweb/context"
+	"github.com/ywzjackal/goweb/factory"
+	"github.com/ywzjackal/goweb/router"
+	"github.com/ywzjackal/goweb/session"
+	"github.com/ywzjackal/goweb/storage"
 )
 
 var (
@@ -19,7 +26,7 @@ var (
 )
 
 type FactoryCounter struct {
-	FactoryStandalone
+	factory.FactoryStandalone
 	count int
 }
 
@@ -40,11 +47,21 @@ func (f *ControllerCounter) ActionGet() string {
 }
 
 func startWsServer() {
-	memStorage := NewStorageMemory()
-	factoryContainer := NewFactoryContainer()
+	memStorage := storage.NewStorageMemory()
+	factoryContainer := factory.NewFactoryContainer()
 	controllerContainer := NewControllerContainer(factoryContainer)
-	router := NewRouter(controllerContainer, factoryContainer, memStorage)
-	router.FactoryContainer().Register(&FactoryCounter{
+	router := router.NewRouter(
+		controllerContainer,
+		func(res http.ResponseWriter, req *http.Request) goweb.Context {
+			return context.NewContext(
+				res,
+				req,
+				factoryContainer,
+				session.NewSession(res, req, memStorage),
+			)
+		},
+	)
+	factoryContainer.Register(&FactoryCounter{
 		count: 2,
 	})
 	router.ControllerContainer().Register("/counter", &ControllerCounter{})

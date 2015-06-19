@@ -1,4 +1,4 @@
-package goweb
+package router
 
 import (
 	"fmt"
@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/ywzjackal/goweb"
+	"github.com/ywzjackal/goweb/view"
 )
 
 const (
@@ -18,18 +21,21 @@ var (
 	__gloabl_goweb_router = &router{}
 )
 
+type ContextGenerator func(http.ResponseWriter, *http.Request) goweb.Context
+
 type router struct {
 	http.Handler
-	controllers ControllerContainer
-	factorys    FactoryContainer
-	storage     Storage
+	controllers goweb.ControllerContainer
+	ctxGetor    ContextGenerator
 }
 
-func NewRouter(c ControllerContainer, f FactoryContainer, s Storage) Router {
+func NewRouter(
+	c goweb.ControllerContainer,
+	ctxGetor ContextGenerator,
+) goweb.Router {
 	return &router{
 		controllers: c,
-		factorys:    f,
-		storage:     s,
+		ctxGetor:    ctxGetor,
 	}
 }
 
@@ -37,39 +43,23 @@ func (r *router) Name() string {
 	return __router_name
 }
 
-func (r *router) ControllerContainer() ControllerContainer {
+func (r *router) ControllerContainer() goweb.ControllerContainer {
 	return r.controllers
-}
-
-func (r *router) FactoryContainer() FactoryContainer {
-	return r.factorys
-}
-
-func (r *router) MemStorage() Storage {
-	return r.storage
 }
 
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var (
 		begin     = time.Now()
 		urlprefix = strings.ToLower(req.URL.Path)
-		session   = &session{}
-		ctx       = &context{
-			request:          req,
-			responseWriter:   res,
-			factoryContainer: r.FactoryContainer(),
-			session:          session,
-		}
-		rts  []reflect.Value
-		err  WebError
-		_err WebError
+		ctx       = r.ctxGetor(res, req)
+		rts       []reflect.Value
+		err       goweb.WebError
+		_err      goweb.WebError
 	)
-
-	session.Init(res, req, r.storage)
 
 	ctl, err := r.controllers.Get(urlprefix, ctx)
 	if err != nil || ctl == nil {
-		ctx.err = err
+		ctx.SetError(err)
 		goto ERROR_USER_REPORT
 	} else {
 		rts, err = ctl.Call(req.Method, ctx)
@@ -81,21 +71,21 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			goto FINISH
 		} else {
 			err.Append(http.StatusMethodNotAllowed, "Fail to call `%s`->`%s`", ctl, req.Method)
-			ctx.err = err
+			ctx.SetError(err)
 			goto ERROR_USER_REPORT
 		}
 	}
 	goto FINISH
 
 FINISH:
-	if Debug {
-		Log.Printf("%s: %s %d %dus", req.Method, req.URL.Path, 200, time.Now().Sub(begin).Nanoseconds()/1000)
+	if goweb.Debug {
+		goweb.Log.Printf("%s: %s %d %dus", req.Method, req.URL.Path, 200, time.Now().Sub(begin).Nanoseconds()/1000)
 	}
 	return
 
 ERROR_USER_REPORT:
-	ctx.request.URL.Path = fmt.Sprintf("/%d", err.Code())
-	ctl, _err = r.controllers.Get(ctx.request.URL.Path, ctx)
+	ctx.Request().URL.Path = fmt.Sprintf("/%d", err.Code())
+	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
 		rts, _err = ctl.Call(req.Method, ctx)
 		if _err == nil {
@@ -109,8 +99,8 @@ ERROR_USER_REPORT:
 	goto FINISH
 
 DEFAULT_ERROR_USER_REPORT:
-	ctx.request.URL.Path = "/error"
-	ctl, _err = r.controllers.Get(ctx.request.URL.Path, ctx)
+	ctx.Request().URL.Path = "/error"
+	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
 		rts, _err = ctl.Call(req.Method, ctx)
 		if _err == nil {
@@ -141,4 +131,27 @@ DEFAULT_ERROR_REPORT:
 	}
 	res.Write([]byte("</ul><hr><h4>Power by GoWeb github.com/ywzjackal/goweb </h4></body></html>"))
 	goto FINISH
+}
+
+func render(rets []reflect.Value, c goweb.Controller) goweb.WebError {
+	if len(rets) == 0 {
+		return goweb.NewWebError(1, "Controller Action need return a ViewType like `html`,`json`.")
+	}
+	viewType, ok := rets[0].Interface().(string)
+	if !ok {
+		return goweb.NewWebError(1, "Controller Action need return a ViewType of string! but got `%s`", rets[0].Type())
+	}
+	view := view.GetView(viewType)
+	if view == nil {
+		return goweb.NewWebError(1, "Unknow ViewType :%s", viewType)
+	}
+	interfaces := make([]interface{}, len(rets)-1, len(rets)-1)
+	for i, ret := range rets[1:] {
+		interfaces[i] = ret.Interface()
+	}
+	err := view.Render(c, interfaces...)
+	if err != nil {
+		return err.Append(500, "Fail to render view %s, data:%+v", viewType, interfaces)
+	}
+	return nil
 }

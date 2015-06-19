@@ -1,8 +1,12 @@
-package goweb
+package session
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"time"
+
+	"github.com/ywzjackal/goweb"
 )
 
 var (
@@ -10,27 +14,20 @@ var (
 	SessionTimeout = time.Minute * 1
 )
 
-type Session interface {
-	Init(http.ResponseWriter, *http.Request, Storage) WebError
-	Id() string
-	Get(string) string
-	Set(string, string)
-	Remove(string)
-	MemMap() map[interface{}]interface{}
-}
-
 type session struct {
-	Session
+	goweb.Session
 	id  string
 	req *http.Request
 	res http.ResponseWriter
 	mem map[interface{}]interface{}
 }
 
-func (s *session) Init(res http.ResponseWriter, req *http.Request, storage Storage) WebError {
-	s.res = res
-	s.req = req
-	cookie, err := s.req.Cookie(SessionIdTag)
+func NewSession(res http.ResponseWriter, req *http.Request, storage goweb.Storage) goweb.Session {
+	s := &session{
+		res: res,
+		req: req,
+	}
+	cookie, err := req.Cookie(SessionIdTag)
 	if err == nil && cookie != nil && len(cookie.Value) != 0 {
 		s.id = cookie.Value
 	} else {
@@ -50,7 +47,7 @@ func (s *session) Init(res http.ResponseWriter, req *http.Request, storage Stora
 	} else {
 		s.mem = itfs.(map[interface{}]interface{})
 	}
-	return nil
+	return s
 }
 
 func (s *session) Id() string {
@@ -64,7 +61,7 @@ func (s *session) MemMap() map[interface{}]interface{} {
 func (s *session) Get(key string) string {
 	cookie, err := s.req.Cookie(key)
 	if err != nil {
-		Err.Printf("Get cookie failed!%s", err.Error())
+		goweb.Err.Printf("Get cookie failed!%s", err.Error())
 		return ""
 	}
 	return cookie.Value
@@ -88,4 +85,10 @@ func (s *session) Remove(key string) {
 		Path:   "/",
 	}
 	http.SetCookie(s.res, cookie)
+}
+
+func generateSessionIdByRequest(req *http.Request) string {
+	bytes := make([]byte, 4)
+	rand.Read(bytes)
+	return base64.StdEncoding.EncodeToString(bytes)
 }

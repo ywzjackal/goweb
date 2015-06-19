@@ -1,8 +1,10 @@
-package goweb
+package factory
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/ywzjackal/goweb"
 )
 
 type FactoryBase struct {
@@ -12,7 +14,7 @@ type FactoryBase struct {
 
 func (f *FactoryBase) Init() {
 	f.Name = "Facti"
-	Log.Print("Init FactoryBase!")
+	goweb.Log.Print("Init FactoryBase!")
 }
 
 type FactoryTest1 struct {
@@ -23,7 +25,7 @@ type FactoryTest1 struct {
 
 func (f *FactoryTest1) Init() {
 	f.Num = 2
-	Log.Print("Init FactoryTest1!")
+	goweb.Log.Print("Init FactoryTest1!")
 }
 
 func Test_Factory(t *testing.T) {

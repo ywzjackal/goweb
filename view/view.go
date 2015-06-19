@@ -1,4 +1,4 @@
-package goweb
+package view
 
 import (
 	"bufio"
@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+
+	"github.com/ywzjackal/goweb"
 )
 
 var (
@@ -19,7 +21,7 @@ var (
 	// html.template delims attributes of right
 	DelimsRight = "}}"
 	// views map container
-	views = make(map[string]View)
+	views = make(map[string]goweb.View)
 	// never mind! -.-
 	rootTemplate = template.New("")
 	//
@@ -52,31 +54,31 @@ func ReloadTemplates() {
 //
 // RegisterView 应该在用户引用的自定义视图组件的包文件的init（）函数中调用以注册新的视图组件
 // 如果出现panic，说明视图组件的名字被重复注册
-func RegisterView(name string, view View) {
+func RegisterView(name string, view goweb.View) {
 	if _, ok := views[strings.ToLower(name)]; ok {
 		panic("Register view `" + name + "` duplicate!")
 	}
 	views[strings.ToLower(name)] = view
 }
 
-// View is the top of view component's interface, all custom view component need
-// implament from this, and realize method Render(Controller, ...interface{}) WebError
-//
-// View 是视图的定级接口组件，所有的自定义视图组件必须实现此接口
-type View interface {
-	Render(Controller, ...interface{}) WebError
+func GetView(name string) goweb.View {
+	v, exist := views[name]
+	if exist {
+		return v
+	}
+	return nil
 }
 
 type view struct {
-	View
+	goweb.View
 }
 
 type ViewHtml interface {
-	View
+	goweb.View
 }
 
 type ViewJson interface {
-	View
+	goweb.View
 }
 
 type viewHtml struct {
@@ -91,19 +93,19 @@ type viewJson struct {
 	*view
 }
 
-func (v *view) Render(c Controller, args ...interface{}) WebError {
+func (v *view) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
 	//	raw := []byte(fmt.Sprintf("% +v, % +v", c, args))
 	//	_, err := c.Context().ResponseWriter().Write(raw)
 	//	if err != nil {
-	//		return NewWebError(500, err.Error())
+	//		return goweb.NewWebError(500, err.Error())
 	//	}
 	return nil
 }
 
-func (v *viewHtml) Render(c Controller, args ...interface{}) WebError {
+func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
 	var (
-		name          = strings.ToLower(c.Context().Request().URL.Path)
-		err  WebError = nil
+		name                = strings.ToLower(c.Context().Request().URL.Path)
+		err  goweb.WebError = nil
 	)
 	//	if Debug {
 	//		ReloadTemplates()
@@ -114,21 +116,21 @@ func (v *viewHtml) Render(c Controller, args ...interface{}) WebError {
 	case 0:
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return NewWebError(500, e.Error())
+			return goweb.NewWebError(500, e.Error())
 		}
 	case 1:
 		name, ok := args[0].(string)
 		if !ok {
-			return NewWebError(500, "invalid view template name:%+v,need string", args[0])
+			return goweb.NewWebError(500, "invalid view template name:%+v,need string", args[0])
 		}
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return NewWebError(500, e.Error())
+			return goweb.NewWebError(500, e.Error())
 		}
 	default:
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return NewWebError(500, e.Error())
+			return goweb.NewWebError(500, e.Error())
 		}
 	}
 	writer.Flush()
@@ -137,17 +139,17 @@ func (v *viewHtml) Render(c Controller, args ...interface{}) WebError {
 	return err
 }
 
-func (v *viewJson) Render(c Controller, args ...interface{}) WebError {
+func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
 	if len(args) == 1 {
 		b, err := json.MarshalIndent(c, "", " ")
 		if err != nil {
-			return NewWebError(500, err.Error())
+			return goweb.NewWebError(500, err.Error())
 		}
 		_, err = c.Context().ResponseWriter().Write(b)
 	} else {
 		b, err := json.MarshalIndent(args, "", " ")
 		if err != nil {
-			return NewWebError(500, err.Error())
+			return goweb.NewWebError(500, err.Error())
 		}
 		_, err = c.Context().ResponseWriter().Write(b)
 	}
