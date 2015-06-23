@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -102,14 +103,18 @@ func (v *view) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
 	return nil
 }
 
-func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
+func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.WebError) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.Context().ResponseWriter().Write([]byte(fmt.Sprintf("%v", r)))
+		}
+	}()
 	var (
-		name                = strings.ToLower(c.Context().Request().URL.Path)
-		err  goweb.WebError = nil
+		name = strings.ToLower(c.Context().Request().URL.Path)
 	)
-	//	if Debug {
-	//		ReloadTemplates()
-	//	}
+	if goweb.Debug {
+		ReloadTemplates()
+	}
 	buffer := bytes.Buffer{}
 	writer := bufio.NewWriter(&buffer)
 	switch len(args) {

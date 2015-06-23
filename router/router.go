@@ -64,23 +64,22 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	} else {
 		rts, err = ctl.Call(req.Method, ctx)
 		if err == nil {
-			if ctx.Error() == nil || ctx.Error().Code() == 0 {
+			if ctx.Error() == nil {
 				err = render(rts, ctl)
-				if err != nil {
-					goto ERROR_USER_REPORT
-				}
 			} else {
 				err = ctx.Error()
+			}
+			if err == nil {
+				goto FINISH
+			} else {
 				goto ERROR_USER_REPORT
 			}
-			goto FINISH
 		} else {
 			err.Append(http.StatusMethodNotAllowed, "Fail to call `%s`->`%s`", ctl, req.Method)
 			ctx.SetError(err)
 			goto ERROR_USER_REPORT
 		}
 	}
-	goto FINISH
 
 FINISH:
 	if goweb.Debug {

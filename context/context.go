@@ -41,9 +41,6 @@ func (c *context) Session() goweb.Session {
 }
 
 func (c *context) Error() goweb.WebError {
-	if c.err == nil {
-		c.err = goweb.NewWebError(0, "SUCCESS")
-	}
 	return c.err
 }
 
