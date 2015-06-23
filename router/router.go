@@ -64,8 +64,13 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	} else {
 		rts, err = ctl.Call(req.Method, ctx)
 		if err == nil {
-			err = render(rts, ctl)
-			if err != nil {
+			if ctx.Error() == nil || ctx.Error().Code() == 0 {
+				err = render(rts, ctl)
+				if err != nil {
+					goto ERROR_USER_REPORT
+				}
+			} else {
+				err = ctx.Error()
 				goto ERROR_USER_REPORT
 			}
 			goto FINISH

@@ -12,11 +12,18 @@ var (
 var Log = log.New(os.Stdout, "[GWLOG]", log.Ldate|log.Lmicroseconds|log.Lshortfile)
 var Err = log.New(os.Stderr, "[GWERR]", log.Ldate|log.Lmicroseconds|log.Lshortfile)
 
+type LifeType int
+
 const (
-	LifeTypeError = iota
+	LifeTypeError LifeType = iota
 	LifeTypeStateless
 	LifeTypeStandalone
 	LifeTypeStateful
 )
 
-type LifeType int
+var LifeTypeName = []string{
+	LifeTypeError:      "LifeTypeError",
+	LifeTypeStateless:  "LifeTypeStateless",
+	LifeTypeStandalone: "LifeTypeStandalone",
+	LifeTypeStateful:   "LifeTypeStateful",
+}

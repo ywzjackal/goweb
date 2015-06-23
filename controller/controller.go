@@ -140,7 +140,7 @@ func initController(ctli goweb.Controller, fac goweb.FactoryContainer) {
 		}
 		name := strings.ToLower(mtd.Name[len(ActionPrefix):])
 		ctl._actions[name] = &mtd.Func
-		goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, ctli.Type())
+		goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctli.Type()])
 	}
 }
 
