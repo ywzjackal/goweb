@@ -146,7 +146,7 @@ func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.We
 }
 
 func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
-	if len(args) == 1 {
+	if len(args) == 0 {
 		b, err := json.MarshalIndent(c, "", " ")
 		if err != nil {
 			return goweb.NewWebError(500, err.Error())
