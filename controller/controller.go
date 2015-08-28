@@ -32,15 +32,15 @@ type ControllerStateful interface {
 }
 
 type controller struct {
-	goweb.Controller
-	_selfValue  reflect.Value
-	_ctx        goweb.Context         // Realtime goweb.Context struct
-	_querys     map[string]injectNode // query parameters
-	_standalone []injectNode          // factory which need be injected after first initialized
-	_stateful   []injectNode          // factory which need be injected from session before called
-	_stateless  []injectNode          // factory which need be injected always new before called
-	_type       goweb.LifeType        // standalone or stateless or stateful
-	_actions    map[string]*reflect.Value
+	goweb.Controller `json:"-"`
+	_selfValue       reflect.Value
+	_ctx             goweb.Context         // Realtime goweb.Context struct
+	_querys          map[string]injectNode // query parameters
+	_standalone      []injectNode          // factory which need be injected after first initialized
+	_stateful        []injectNode          // factory which need be injected from session before called
+	_stateless       []injectNode          // factory which need be injected always new before called
+	_type            goweb.LifeType        // standalone or stateless or stateful
+	_actions         map[string]*reflect.Value
 }
 
 func (c *controller) String() string {

@@ -139,7 +139,8 @@ func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.We
 		}
 	}
 	writer.Flush()
-	c.Context().ResponseWriter().WriteHeader(200)
+	c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
+	c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
 	c.Context().ResponseWriter().Write(buffer.Bytes())
 	return err
 }
@@ -150,12 +151,16 @@ func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebErro
 		if err != nil {
 			return goweb.NewWebError(500, err.Error())
 		}
+		c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
+		c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
 		_, err = c.Context().ResponseWriter().Write(b)
 	} else {
 		b, err := json.MarshalIndent(args, "", " ")
 		if err != nil {
 			return goweb.NewWebError(500, err.Error())
 		}
+		c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
+		c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
 		_, err = c.Context().ResponseWriter().Write(b)
 	}
 	return nil

@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	StorageDefaultLife = time.Minute * 10
+	StorageDefaultLife = time.Minute * 30
 )
 
 type storageValueWrap struct {

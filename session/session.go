@@ -11,7 +11,7 @@ import (
 
 var (
 	SessionIdTag   = "__sid__"
-	SessionTimeout = time.Minute * 1
+	SessionTimeout = time.Minute * 30
 )
 
 type session struct {

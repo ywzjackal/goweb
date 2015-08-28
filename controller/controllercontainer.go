@@ -85,20 +85,24 @@ func resolveUrlParameters(c *controller, target *reflect.Value) goweb.WebError {
 	}
 	for key, node := range c._querys {
 		strs := req.Form[key]
-		if len(strs) == 0 {
-			continue
-		}
 		switch node.tp.Kind() {
 		case reflect.String:
+			if len(strs) == 0 {
+				node.va.SetString("")
+				break
+			}
 			node.va.SetString(strs[0])
 		case reflect.Bool:
-			b, err := strconv.ParseBool(strs[0])
-			if err != nil {
-				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(bool) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
-				continue
+			if len(strs) == 0 {
+				node.va.SetBool(false)
+				break
 			}
-			node.va.SetBool(b)
+			node.va.SetBool(ParseBool(strs[0]))
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if len(strs) == 0 {
+				node.va.SetInt(0)
+				break
+			}
 			num, err := strconv.ParseInt(strs[0], 10, 0)
 			if err != nil {
 				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
@@ -106,6 +110,10 @@ func resolveUrlParameters(c *controller, target *reflect.Value) goweb.WebError {
 			}
 			node.va.SetInt(num)
 		case reflect.Float32, reflect.Float64:
+			if len(strs) == 0 {
+				node.va.SetFloat(0.0)
+				break
+			}
 			f, err := strconv.ParseFloat(strs[0], 0)
 			if err != nil {
 				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
@@ -144,4 +152,17 @@ func resolveUrlParameters(c *controller, target *reflect.Value) goweb.WebError {
 		}
 	}
 	return nil
+}
+
+// ParseBool returns the boolean value represented by the string.
+// It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+// Any other value returns an error.
+func ParseBool(str string) (value bool) {
+	goweb.Log.Print(str)
+	switch str {
+	case "1", "t", "T", "true", "TRUE", "True", "on", "ON", "On", "O", "o":
+		return true
+	default:
+		return false
+	}
 }
