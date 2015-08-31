@@ -146,22 +146,23 @@ func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.We
 }
 
 func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
-	if len(args) == 0 {
-		b, err := json.MarshalIndent(c, "", " ")
-		if err != nil {
-			return goweb.NewWebError(500, err.Error())
-		}
-		c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
-		c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
-		_, err = c.Context().ResponseWriter().Write(b)
-	} else {
-		b, err := json.MarshalIndent(args, "", " ")
-		if err != nil {
-			return goweb.NewWebError(500, err.Error())
-		}
-		c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
-		c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
-		_, err = c.Context().ResponseWriter().Write(b)
+	var (
+		b   []byte = nil
+		err error  = nil
+	)
+	switch len(args) {
+	case 0:
+		b, err = json.MarshalIndent(c, "", " ")
+	case 1:
+		b, err = json.MarshalIndent(args[0], "", " ")
+	default:
+		b, err = json.MarshalIndent(args, "", " ")
 	}
+	if err != nil {
+		return goweb.NewWebError(500, err.Error())
+	}
+	c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
+	c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
+	_, err = c.Context().ResponseWriter().Write(b)
 	return nil
 }
