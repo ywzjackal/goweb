@@ -78,6 +78,10 @@ func isInterfaceController(itfs interface{}) goweb.WebError {
 	return goweb.NewWebError(500, "`%s` is not a pointer of struct!", reflectType(t))
 }
 
+func resolveJsonParameters(c *controller, target *reflect.Value) goweb.WebError {
+	return nil
+}
+
 func resolveUrlParameters(c *controller, target *reflect.Value) goweb.WebError {
 	req := c._ctx.Request()
 	if err := req.ParseForm(); err != nil {
