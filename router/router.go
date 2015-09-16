@@ -92,7 +92,6 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			// action, context.error will be defined. so check it.
 			if ctx.Error() == nil {
 				// finialize,  render page to user.
-				res.WriteHeader(http.StatusOK)
 				err = render(rts, ctl)
 			} else {
 				// or get the error.

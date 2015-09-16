@@ -13,19 +13,19 @@ import (
 )
 
 var (
-	// TemplateSuffix is template suffix -.-
+// TemplateSuffix is template suffix -.-
 	TemplateSuffix = ".html"
-	// TemplatePosition is template position path -.-
+// TemplatePosition is template position path -.-
 	TemplatePosition = "" //"./templates"
-	// html.template delims attributes of left
+// html.template delims attributes of left
 	DelimsLeft = "{{"
-	// html.template delims attributes of right
+// html.template delims attributes of right
 	DelimsRight = "}}"
-	// views map container
+// views map container
 	views = make(map[string]goweb.View)
-	// never mind! -.-
+// never mind! -.-
 	rootTemplate = template.New("")
-	//
+//
 	TemplateFuncs = template.FuncMap{
 		"httpStatusText": http.StatusText,
 	}
@@ -47,7 +47,7 @@ func ReloadTemplates() {
 	}
 	rootTemplate = template.New("").Funcs(TemplateFuncs)
 	rootTemplate = template.Must(rootTemplate.Delims(DelimsLeft, DelimsRight).
-		ParseGlob(TemplatePosition + "/*"))
+	ParseGlob(TemplatePosition + "/*"))
 }
 
 // RegisterView should be called by custom view component in 'package file init() function'
@@ -121,26 +121,29 @@ func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.We
 	case 0:
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return goweb.NewWebError(500, e.Error())
+			return goweb.NewWebError(http.StatusInternalServerError, e.Error())
 		}
 	case 1:
 		name, ok := args[0].(string)
 		if !ok {
-			return goweb.NewWebError(500, "invalid view template name:%+v,need string", args[0])
+			return goweb.NewWebError(http.StatusInternalServerError, "invalid view template name:%+v,need string", args[0])
 		}
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return goweb.NewWebError(500, e.Error())
+			return goweb.NewWebError(http.StatusInternalServerError, e.Error())
 		}
 	default:
 		e := rootTemplate.ExecuteTemplate(writer, name, c)
 		if e != nil {
-			return goweb.NewWebError(500, e.Error())
+			return goweb.NewWebError(http.StatusInternalServerError, e.Error())
 		}
 	}
 	writer.Flush()
-	c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
-	c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
+	h := c.Context().ResponseWriter().Header()
+	h.Set("Cache-Control", "no-store, must-revalidate")
+	h.Set("Pragma", "no-cache")
+	h.Set("Content-Type", "text/html;charset=utf-8")
+	c.Context().ResponseWriter().WriteHeader(http.StatusOK)
 	c.Context().ResponseWriter().Write(buffer.Bytes())
 	return err
 }
@@ -148,7 +151,7 @@ func (v *viewHtml) Render(c goweb.Controller, args ...interface{}) (err goweb.We
 func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebError {
 	var (
 		b   []byte = nil
-		err error  = nil
+		err error = nil
 	)
 	switch len(args) {
 	case 0:
@@ -159,10 +162,13 @@ func (v *viewJson) Render(c goweb.Controller, args ...interface{}) goweb.WebErro
 		b, err = json.MarshalIndent(args, "", " ")
 	}
 	if err != nil {
-		return goweb.NewWebError(500, err.Error())
+		return goweb.NewWebError(http.StatusInternalServerError, err.Error())
 	}
-	c.Context().ResponseWriter().Header().Add("Cache-Control", "no-store, must-revalidate")
-	c.Context().ResponseWriter().Header().Add("Pragma", "no-cache")
+	h := c.Context().ResponseWriter().Header()
+	h.Set("Cache-Control", "no-store, must-revalidate")
+	h.Set("Pragma", "no-cache")
+	h.Set("Content-Type", "application/json;charset=utf-8")
+	c.Context().ResponseWriter().WriteHeader(http.StatusOK)
 	_, err = c.Context().ResponseWriter().Write(b)
 	return nil
 }

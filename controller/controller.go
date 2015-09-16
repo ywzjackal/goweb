@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/ywzjackal/goweb"
+	"encoding/json"
+	"strconv"
 )
 
 const (
@@ -33,14 +35,15 @@ type ControllerStateful interface {
 
 type controller struct {
 	goweb.Controller `json:"-"`
-	_selfValue       reflect.Value
-	_ctx             goweb.Context         // Realtime goweb.Context struct
-	_querys          map[string]injectNode // query parameters
-	_standalone      []injectNode          // factory which need be injected after first initialized
-	_stateful        []injectNode          // factory which need be injected from session before called
-	_stateless       []injectNode          // factory which need be injected always new before called
-	_type            goweb.LifeType        // standalone or stateless or stateful
-	_actions         map[string]*reflect.Value
+	_selfValue  reflect.Value
+	_parent     interface{}
+	_ctx        goweb.Context         // Realtime goweb.Context struct
+	_querys     map[string]injectNode // query parameters
+	_standalone []injectNode          // factory which need be injected after first initialized
+	_stateful   []injectNode          // factory which need be injected from session before called
+	_stateless  []injectNode          // factory which need be injected always new before called
+	_type       goweb.LifeType        // standalone or stateless or stateful
+	_actions    map[string]*reflect.Value
 }
 
 func (c *controller) String() string {
@@ -71,7 +74,13 @@ func (c *controller) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb
 			return nil, goweb.NewWebError(http.StatusMethodNotAllowed, "Action `%s` not found!", mtd)
 		}
 	}
-	if err := resolveUrlParameters(c, &c._selfValue); err != nil {
+	ctx_type := ctx.Request().Header.Get("Content-Type")
+	if strings.Index(ctx_type, "application/json") >= 0 {
+		if err := c.resolveJsonParameters(); err != nil {
+			return nil, err.Append(http.StatusBadRequest, "Fail to resolve controller `%s` json parameters!", c._selfValue)
+		}
+	}
+	if err := c.resolveUrlParameters(); err != nil {
 		return nil, err.Append(http.StatusInternalServerError, "Fail to resolve controler `%s` url parameters!", c._selfValue)
 	}
 	if err := resolveInjections(ctx.FactoryContainer(), ctx, c._stateless); err != nil {
@@ -87,12 +96,13 @@ func (c *controller) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb
 // InitController when register to controller container before used.
 func initController(ctli goweb.Controller, fac goweb.FactoryContainer) {
 	var (
-		rtp reflect.Type  = reflect.TypeOf(ctli)
+		rtp reflect.Type = reflect.TypeOf(ctli)
 		rva reflect.Value = reflect.ValueOf(ctli)
-		ctl *controller   = &controller{
+		ctl *controller = &controller{
 			_selfValue: rva,
 			_querys:    make(map[string]injectNode),
 			_actions:   make(map[string]*reflect.Value),
+			_parent:	ctli,
 		}
 		ctlVal reflect.Value = reflect.ValueOf(ctl)
 	)
@@ -201,7 +211,7 @@ func isActionMethod(method *reflect.Method) goweb.WebError {
 		return goweb.NewWebError(500, "func %s doesn't have prefix '%s'", method.Name, ActionPrefix)
 	}
 	if method.Type.NumIn() != 1 {
-		err := goweb.NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn()-1)
+		err := goweb.NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn() - 1)
 		goweb.Err.Print(err.Error())
 		return err
 	}
@@ -259,6 +269,98 @@ func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes
 			return goweb.NewWebError(500, "inject invalid type of %s, need Ptr", v.Kind())
 		}
 		node.va.Set(v)
+	}
+	return nil
+}
+
+func (c *controller)resolveJsonParameters() goweb.WebError {
+	de := json.NewDecoder(c._ctx.Request().Body);
+	err := de.Decode(c._parent)
+	if (err != nil) {
+		return goweb.NewWebError(http.StatusBadRequest, err.Error())
+	}
+	return nil
+}
+
+func (c *controller)resolveUrlParameters() goweb.WebError {
+	req := c._ctx.Request()
+	if err := req.ParseForm(); err != nil {
+		return goweb.NewWebError(500, "Fail to ParseForm with path:%s,%s", req.URL.String(), err.Error())
+	}
+	//	for key, node := range c._querys {
+	for pn, pv := range req.Form {
+		key := strings.ToLower(pn)
+		//		strs := req.Form[key]
+		strs := pv
+		node, ok := c._querys[key]
+		if !ok {
+			continue
+		}
+		switch node.tp.Kind() {
+		case reflect.String:
+			if len(strs) == 0 {
+				node.va.SetString("")
+				break
+			}
+			node.va.SetString(strs[0])
+		case reflect.Bool:
+			if len(strs) == 0 {
+				node.va.SetBool(false)
+				break
+			}
+			node.va.SetBool(ParseBool(strs[0]))
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if len(strs) == 0 {
+				node.va.SetInt(0)
+				break
+			}
+			num, err := strconv.ParseInt(strs[0], 10, 0)
+			if err != nil {
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				continue
+			}
+			node.va.SetInt(num)
+		case reflect.Float32, reflect.Float64:
+			if len(strs) == 0 {
+				node.va.SetFloat(0.0)
+				break
+			}
+			f, err := strconv.ParseFloat(strs[0], 0)
+			if err != nil {
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				continue
+			}
+			node.va.SetFloat(f)
+		case reflect.Slice:
+			targetType := node.tp.Elem()
+			lens := len(strs)
+			values := reflect.MakeSlice(reflect.SliceOf(targetType), lens, lens)
+			switch targetType.Kind() {
+			case reflect.String:
+				values = reflect.ValueOf(strs)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					intValue, _ := strconv.ParseInt(strs[j], 10, 0)
+					v.SetInt(intValue)
+				}
+			case reflect.Float32, reflect.Float64:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					floatValue, _ := strconv.ParseFloat(strs[j], 0)
+					v.SetFloat(floatValue)
+				}
+			case reflect.Bool:
+				for j := 0; j < lens; j++ {
+					v := values.Index(j)
+					boolValue, _ := strconv.ParseBool(strs[j])
+					v.SetBool(boolValue)
+				}
+			}
+			node.va.Set(values)
+		default:
+			return goweb.NewWebError(500, "Unresolveable url parameter type `%s`", node.tp)
+		}
 	}
 	return nil
 }
