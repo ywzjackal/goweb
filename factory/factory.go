@@ -82,7 +82,7 @@ func (f *factory) Init() {
 	if f._intFunc.IsValid() {
 		f._intFunc.Call([]reflect.Value{})
 	} else {
-		goweb.Log.Printf("`%s` doesn't have method `Init`!", f._selfValue.Type())
+//		goweb.Log.Printf("`%s` doesn't have method `Init`!", f._selfValue.Type())
 	}
 }
 

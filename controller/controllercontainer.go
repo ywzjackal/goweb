@@ -1,8 +1,9 @@
 package controller
 
 import (
-	"reflect"
 	"github.com/ywzjackal/goweb"
+	"net/http"
+	"reflect"
 )
 
 func NewControllerContainer(f goweb.FactoryContainer) goweb.ControllerContainer {
@@ -11,6 +12,30 @@ func NewControllerContainer(f goweb.FactoryContainer) goweb.ControllerContainer 
 		ctls:     make(map[string]goweb.Controller),
 	}
 	return c
+}
+
+type context struct {
+	goweb.Context
+	_c goweb.FactoryContainer
+}
+
+func (c *context) Request() *http.Request {
+	return nil
+}
+func (c *context) ResponseWriter() http.ResponseWriter {
+	return nil
+}
+func (c *context) FactoryContainer() goweb.FactoryContainer {
+	return c._c
+}
+func (c *context) Session() goweb.Session {
+	return nil
+}
+func (c *context) Error() goweb.WebError {
+	return nil
+}
+func (c *context) SetError(goweb.WebError) {
+
 }
 
 // controllerContainer is buildin default controller container
@@ -25,31 +50,31 @@ func (c *controllerContainer) Register(prefix string, ctl goweb.Controller) {
 	if exist {
 		panic("URL Prefix:" + prefix + " register duplicated")
 	}
-	initController(ctl, c.factorys)
+	initController(ctl, &context{_c: c.factorys})
 	c.ctls[prefix] = ctl
 }
 
 func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.Controller, goweb.WebError) {
 	var (
 		ctl goweb.Controller = nil
-		ok bool = false
+		ok  bool             = false
 	)
 	ctl, ok = c.ctls[prefix]
 	if !ok || ctl == nil {
 		return nil, goweb.NewWebError(404, "goweb.Controller `%s` not found!", prefix)
 	}
 	switch ctl.Type() {
-	case goweb.LifeTypeStandalone:
+	case goweb.LifeTypeStandalone: //no need break;
 	case goweb.LifeTypeStateless:
 		ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
-		initController(ctl, ctx.FactoryContainer())
+		initController(ctl, ctx)
 	case goweb.LifeTypeStateful:
 		mem := ctx.Session().MemMap()
-		itfs, ok := mem["__ctl_" + prefix]
+		itfs, ok := mem["__ctl_"+prefix]
 		if !ok {
 			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
-			initController(ctl, ctx.FactoryContainer())
-			mem["__ctl_" + prefix] = ctl
+			initController(ctl, ctx)
+			mem["__ctl_"+prefix] = ctl
 		} else {
 			ctl, ok = itfs.(goweb.Controller)
 			if !ok {

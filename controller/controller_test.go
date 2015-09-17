@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/ywzjackal/goweb"
-	"github.com/ywzjackal/goweb/context"
+	ctx "github.com/ywzjackal/goweb/context"
 	"github.com/ywzjackal/goweb/factory"
 	"github.com/ywzjackal/goweb/router"
 	"github.com/ywzjackal/goweb/session"
@@ -53,7 +53,7 @@ func startWsServer() {
 	router := router.NewRouter(
 		controllerContainer,
 		func(res http.ResponseWriter, req *http.Request) goweb.Context {
-			return context.NewContext(
+			return ctx.NewContext(
 				res,
 				req,
 				factoryContainer,

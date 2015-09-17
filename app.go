@@ -47,6 +47,12 @@ type ControllerContainer interface {
 }
 
 type Controller interface {
+	// Init() Will be called :
+	//
+	//   if Controller is Standalone, called when Framework initialization;
+	//   if Controller is Stateless,  called when Request initialization;
+	//   if Controller is Statefull,  called at first use in session;
+	Init()
 	// Context() return current http context
 	Context() Context
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful

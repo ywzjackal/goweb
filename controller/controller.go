@@ -6,13 +6,15 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ywzjackal/goweb"
 	"encoding/json"
+	"github.com/ywzjackal/goweb"
 	"strconv"
 )
 
 const (
-	ActionPrefix = "Action"
+	ActionPrefix    = "Action"
+	ActionPrefixLen = len(ActionPrefix)
+	InitName        = "Init"
 )
 
 type injectNode struct {
@@ -35,15 +37,16 @@ type ControllerStateful interface {
 
 type controller struct {
 	goweb.Controller `json:"-"`
-	_selfValue  reflect.Value
-	_parent     interface{}
-	_ctx        goweb.Context         // Realtime goweb.Context struct
-	_querys     map[string]injectNode // query parameters
-	_standalone []injectNode          // factory which need be injected after first initialized
-	_stateful   []injectNode          // factory which need be injected from session before called
-	_stateless  []injectNode          // factory which need be injected always new before called
-	_type       goweb.LifeType        // standalone or stateless or stateful
-	_actions    map[string]*reflect.Value
+	_selfValue       reflect.Value
+	_parent          goweb.Controller
+	_ctx             goweb.Context             // Realtime goweb.Context struct
+	_querys          map[string]injectNode     // query parameters
+	_standalone      []injectNode              // factory which need be injected after first initialized
+	_stateful        []injectNode              // factory which need be injected from session before called
+	_stateless       []injectNode              // factory which need be injected always new before called
+	_type            goweb.LifeType            // standalone or stateless or stateful
+	_actions         map[string]*reflect.Value //
+	_init            *reflect.Value            // Init() function's reflect.Value Pointer
 }
 
 func (c *controller) String() string {
@@ -94,15 +97,16 @@ func (c *controller) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb
 }
 
 // InitController when register to controller container before used.
-func initController(ctli goweb.Controller, fac goweb.FactoryContainer) {
+func initController(ctli goweb.Controller, ctx goweb.Context) {
 	var (
-		rtp reflect.Type = reflect.TypeOf(ctli)
+		rtp reflect.Type  = reflect.TypeOf(ctli)
 		rva reflect.Value = reflect.ValueOf(ctli)
-		ctl *controller = &controller{
+		ctl *controller   = &controller{
 			_selfValue: rva,
 			_querys:    make(map[string]injectNode),
 			_actions:   make(map[string]*reflect.Value),
-			_parent:	ctli,
+			_parent:    ctli,
+			_ctx:       ctx,
 		}
 		ctlVal reflect.Value = reflect.ValueOf(ctl)
 	)
@@ -140,7 +144,7 @@ func initController(ctli goweb.Controller, fac goweb.FactoryContainer) {
 	if ctl.Type() == goweb.LifeTypeError {
 		panic("goweb.Controller need extend from one of interface ControllerStandalone/ControllerStateful/ControllerStateless")
 	}
-	if err := initSubFields(ctl, rva, fac); err != nil {
+	if err := initSubFields(ctl, rva, ctx.FactoryContainer()); err != nil {
 		panic(err.ErrorAll())
 	}
 	for i := 0; i < rtp.NumMethod(); i++ {
@@ -148,9 +152,16 @@ func initController(ctli goweb.Controller, fac goweb.FactoryContainer) {
 		if isActionMethod(&mtd) != nil {
 			continue
 		}
-		name := strings.ToLower(mtd.Name[len(ActionPrefix):])
-		ctl._actions[name] = &mtd.Func
-		goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctli.Type()])
+		if mtd.Name == InitName {
+			ctl._init = &mtd.Func
+		} else {
+			name := strings.ToLower(mtd.Name[ActionPrefixLen:])
+			ctl._actions[name] = &mtd.Func
+			goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctli.Type()])
+		}
+	}
+	if ctl._init != nil {
+		ctli.Init()
 	}
 }
 
@@ -211,7 +222,7 @@ func isActionMethod(method *reflect.Method) goweb.WebError {
 		return goweb.NewWebError(500, "func %s doesn't have prefix '%s'", method.Name, ActionPrefix)
 	}
 	if method.Type.NumIn() != 1 {
-		err := goweb.NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn() - 1)
+		err := goweb.NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn()-1)
 		goweb.Err.Print(err.Error())
 		return err
 	}
@@ -273,16 +284,16 @@ func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes
 	return nil
 }
 
-func (c *controller)resolveJsonParameters() goweb.WebError {
-	de := json.NewDecoder(c._ctx.Request().Body);
+func (c *controller) resolveJsonParameters() goweb.WebError {
+	de := json.NewDecoder(c._ctx.Request().Body)
 	err := de.Decode(c._parent)
-	if (err != nil) {
+	if err != nil {
 		return goweb.NewWebError(http.StatusBadRequest, err.Error())
 	}
 	return nil
 }
 
-func (c *controller)resolveUrlParameters() goweb.WebError {
+func (c *controller) resolveUrlParameters() goweb.WebError {
 	req := c._ctx.Request()
 	if err := req.ParseForm(); err != nil {
 		return goweb.NewWebError(500, "Fail to ParseForm with path:%s,%s", req.URL.String(), err.Error())
