@@ -17,10 +17,14 @@ const (
 	InitName        = "Init"
 )
 
-type injectNode struct {
-	tp reflect.Type   // reflect.type of target
-	va *reflect.Value // Pointer reflect.value of target
-	id int            // field index
+type nodeType struct {
+	tp reflect.Type // reflect.type of target
+	id int          // field index
+}
+
+type nodeValue struct {
+	va reflect.Value // Pointer reflect.value of target
+	id int           // field index
 }
 
 type ControllerStandalone interface {
@@ -35,21 +39,21 @@ type ControllerStateful interface {
 	goweb.Controller
 }
 
-type controller struct {
-	goweb.Controller `json:"-"`
-	_selfValue       reflect.Value
-	_parent          goweb.Controller
-	_ctx             goweb.Context             // Realtime goweb.Context struct
-	_querys          map[string]injectNode     // query parameters
-	_standalone      []injectNode              // factory which need be injected after first initialized
-	_stateful        []injectNode              // factory which need be injected from session before called
-	_stateless       []injectNode              // factory which need be injected always new before called
-	_type            goweb.LifeType            // standalone or stateless or stateful
-	_actions         map[string]*reflect.Value //
-	_init            *reflect.Value            // Init() function's reflect.Value Pointer
+type controllerValue struct {
+	_parent     goweb.Controller
+	_selfValue  reflect.Value
+	_selfType   reflect.Type
+	_ctx        goweb.Context        // Realtime goweb.Context struct
+	_querys     map[string]nodeValue // query parameters
+	_standalone []nodeValue          // factory which need be injected after first initialized
+	_stateful   []nodeValue          // factory which need be injected from session before called
+	_stateless  []nodeValue          // factory which need be injected always new before called
+	_type       *controllerType      // Pointer to controllerType struct
+	_actions    map[string]nodeValue // methods wrap
+	_init       nodeValue            // Init() function's reflect.Value Pointer
 }
 
-func (c *controller) String() string {
+func (c *controllerValue) String() string {
 	t := c._selfValue.Type()
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -58,17 +62,17 @@ func (c *controller) String() string {
 }
 
 // Context() return the context of client request
-func (c *controller) Context() goweb.Context {
+func (c *controllerValue) Context() goweb.Context {
 	return c._ctx
 }
 
 // Type() return the controller type,one of FactoryTypeStandalone
 // FactoryTypeStateless or FactoryTypeStatful
-func (c *controller) Type() goweb.LifeType {
-	return c._type
+func (c *controllerValue) Type() goweb.LifeType {
+	return c._type._type
 }
 
-func (c *controller) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb.WebError) {
+func (c *controllerValue) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb.WebError) {
 	c._ctx = ctx
 	act, exist := c._actions[strings.ToLower(mtd)]
 	if !exist {
@@ -92,21 +96,78 @@ func (c *controller) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb
 	if err := resolveInjections(ctx.FactoryContainer(), ctx, c._stateful); err != nil {
 		return nil, err.Append(http.StatusInternalServerError, "Fail to resolve stateful injection for %s", c._selfValue)
 	}
-	rt := act.Call([]reflect.Value{c._selfValue})
+	rt := act.va.Call([]reflect.Value{c._selfValue})
 	return rt, nil
 }
 
-// InitController when register to controller container before used.
-func initController(ctli goweb.Controller, ctx goweb.Context) {
+type controllerType struct {
+	_selfValue  reflect.Value
+	_selfType   reflect.Type
+	_parent     goweb.Controller
+	_querys     map[string]nodeType // query parameters
+	_standalone []nodeType          // factory which need be injected after first initialized
+	_stateful   []nodeType          // factory which need be injected from session before called
+	_stateless  []nodeType          // factory which need be injected always new before called
+	_type       goweb.LifeType      // standalone or stateless or stateful
+	_actions    map[string]nodeType // methods wrap
+	_init       nodeType            // Init() function's reflect.Value Pointer
+}
+
+func (c *controllerType) New() *controllerValue {
+	var ctl goweb.Controller = reflect.New(c._selfType).Interface().(goweb.Controller)
+	rt := &controllerValue{
+		_parent:     ctl,
+		_selfValue:  reflect.ValueOf(ctl).Elem(),
+		_selfType:   c._selfType,
+		_querys:     make(map[string]nodeValue, len(c._querys)),
+		_type:       c,
+		_actions:    make(map[string]nodeValue, len(c._actions)),
+		_standalone: make([]nodeValue, len(c._standalone)),
+		_stateful:   make([]nodeValue, len(c._stateful)),
+		_stateless:  make([]nodeValue, len(c._stateless)),
+	}
+	// initialization query(s)
+	for k, n := range c._querys {
+		rt._querys[k] = nodeValue{
+			id: n.id,
+			va: rt._selfValue.Field(n.id),
+		}
+	}
+	// initialization injectNode
+	for i, n := range rt._standalone {
+		n.id = c._standalone[i].id
+		n.va = c._selfValue.Field(n.id)
+	}
+	for i, n := range rt._stateful {
+		n.id = c._stateful[i].id
+		n.va = c._selfValue.Field(n.id)
+	}
+	for i, n := range rt._stateless {
+		n.id = c._stateless[i].id
+		n.va = c._selfValue.Field(n.id)
+	}
+	// initialization actions
+	for k, n := range rt._actions {
+		n.id = c._actions[k].id
+		n.va = c._selfValue.Method(n.id)
+	}
+	// initialization Init method
+	rt._init = nodeValue{
+		id: c._init.id,
+		va: c._selfValue.Method(c._init.id),
+	}
+	return rt
+}
+func newControlerType(ctli goweb.Controller, fac goweb.FactoryContainer) *controllerType {
 	var (
-		rtp reflect.Type  = reflect.TypeOf(ctli)
-		rva reflect.Value = reflect.ValueOf(ctli)
-		ctl *controller   = &controller{
+		rtp reflect.Type    = reflect.TypeOf(ctli)
+		rva reflect.Value   = reflect.ValueOf(ctli)
+		ctl *controllerType = &controllerType{
 			_selfValue: rva,
-			_querys:    make(map[string]injectNode),
-			_actions:   make(map[string]*reflect.Value),
+			_selfType:  reflect.TypeOf(ctli).Elem(),
+			_querys:    make(map[string]nodeType),
+			_actions:   make(map[string]nodeType),
 			_parent:    ctli,
-			_ctx:       ctx,
 		}
 		ctlVal reflect.Value = reflect.ValueOf(ctl)
 	)
@@ -141,10 +202,10 @@ func initController(ctli goweb.Controller, ctx goweb.Context) {
 			continue
 		}
 	}
-	if ctl.Type() == goweb.LifeTypeError {
+	if ctl._type == goweb.LifeTypeError {
 		panic("goweb.Controller need extend from one of interface ControllerStandalone/ControllerStateful/ControllerStateless")
 	}
-	if err := initSubFields(ctl, rva, ctx.FactoryContainer()); err != nil {
+	if err := ctl.initSubFields(rva, fac); err != nil {
 		panic(err.ErrorAll())
 	}
 	for i := 0; i < rtp.NumMethod(); i++ {
@@ -153,19 +214,20 @@ func initController(ctli goweb.Controller, ctx goweb.Context) {
 			continue
 		}
 		if mtd.Name == InitName {
-			ctl._init = &mtd.Func
+			ctl._init = nodeType{
+				id: i,
+				tp: rtp.Field(i).Type,
+			}
 		} else {
 			name := strings.ToLower(mtd.Name[ActionPrefixLen:])
-			ctl._actions[name] = &mtd.Func
+			ctl._actions[name] = nodeType{id: i, tp: mtd.Type}
 			goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctli.Type()])
 		}
 	}
-	if ctl._init != nil {
-		ctli.Init()
-	}
+	return ctl
 }
 
-func initSubFields(ctl *controller, rva reflect.Value, fac goweb.FactoryContainer) goweb.WebError {
+func (ctl *controllerType) initSubFields(rva reflect.Value, fac goweb.FactoryContainer) goweb.WebError {
 	for i := 0; i < rva.NumField(); i++ {
 		stfd := rva.Type().Field(i) // struct field
 		fdva := rva.Field(i)        // field value
@@ -174,10 +236,9 @@ func initSubFields(ctl *controller, rva reflect.Value, fac goweb.FactoryContaine
 		}
 		switch stfd.Type.Kind() {
 		case reflect.Int, reflect.String, reflect.Float32, reflect.Bool, reflect.Slice:
-			ctl._querys[strings.ToLower(stfd.Name)] = injectNode{
+			ctl._querys[strings.ToLower(stfd.Name)] = nodeType{
 				id: i,
 				tp: stfd.Type,
-				va: &fdva,
 			}
 		case reflect.Ptr:
 			if isTypeLookupAble(stfd.Type) != nil {
@@ -185,10 +246,9 @@ func initSubFields(ctl *controller, rva reflect.Value, fac goweb.FactoryContaine
 			}
 			switch factoryType(stfd.Type) {
 			case goweb.LifeTypeStandalone:
-				ctl._standalone = append(ctl._stateful, injectNode{
+				ctl._standalone = append(ctl._stateful, nodeType{
 					id: i,
 					tp: stfd.Type,
-					va: &fdva,
 				})
 				_va, err := fac.Lookup(stfd.Type, nil)
 				if err != nil {
@@ -196,22 +256,20 @@ func initSubFields(ctl *controller, rva reflect.Value, fac goweb.FactoryContaine
 				}
 				fdva.Set(_va)
 			case goweb.LifeTypeStateful:
-				ctl._stateful = append(ctl._stateful, injectNode{
+				ctl._stateful = append(ctl._stateful, nodeType{
 					id: i,
 					tp: stfd.Type,
-					va: &fdva,
 				})
 			case goweb.LifeTypeStateless:
-				ctl._stateless = append(ctl._stateful, injectNode{
+				ctl._stateless = append(ctl._stateful, nodeType{
 					id: i,
 					tp: stfd.Type,
-					va: &fdva,
 				})
 			default:
 				return goweb.NewWebError(500, "Factory `%s` type is not be specified", stfd.Type)
 			}
 		case reflect.Struct:
-			initSubFields(ctl, fdva, fac)
+			ctl.initSubFields(fdva, fac)
 		}
 	}
 	return nil
@@ -267,11 +325,11 @@ func factoryType(t reflect.Type) goweb.LifeType {
 	return goweb.LifeTypeError
 }
 
-func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes []injectNode) goweb.WebError {
+func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes []nodeValue) goweb.WebError {
 	for _, node := range nodes {
-		v, err := factorys.Lookup(node.tp, ctx)
+		v, err := factorys.Lookup(node.va.Type(), ctx)
 		if err != nil {
-			return err.Append(500, "Fail to inject `%s`", node.tp)
+			return err.Append(500, "Fail to inject `%s`", node.va.Type())
 		}
 		if !v.IsValid() {
 			return goweb.NewWebError(500, "inject invalid value to `%s`", node.va)
@@ -284,7 +342,7 @@ func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes
 	return nil
 }
 
-func (c *controller) resolveJsonParameters() goweb.WebError {
+func (c *controllerValue) resolveJsonParameters() goweb.WebError {
 	de := json.NewDecoder(c._ctx.Request().Body)
 	err := de.Decode(c._parent)
 	if err != nil {
@@ -293,7 +351,7 @@ func (c *controller) resolveJsonParameters() goweb.WebError {
 	return nil
 }
 
-func (c *controller) resolveUrlParameters() goweb.WebError {
+func (c *controllerValue) resolveUrlParameters() goweb.WebError {
 	req := c._ctx.Request()
 	if err := req.ParseForm(); err != nil {
 		return goweb.NewWebError(500, "Fail to ParseForm with path:%s,%s", req.URL.String(), err.Error())
@@ -307,7 +365,7 @@ func (c *controller) resolveUrlParameters() goweb.WebError {
 		if !ok {
 			continue
 		}
-		switch node.tp.Kind() {
+		switch node.va.Kind() {
 		case reflect.String:
 			if len(strs) == 0 {
 				node.va.SetString("")
@@ -327,7 +385,7 @@ func (c *controller) resolveUrlParameters() goweb.WebError {
 			}
 			num, err := strconv.ParseInt(strs[0], 10, 0)
 			if err != nil {
-				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.va.Type().Name(), req.Form.Get(key))
 				continue
 			}
 			node.va.SetInt(num)
@@ -338,12 +396,12 @@ func (c *controller) resolveUrlParameters() goweb.WebError {
 			}
 			f, err := strconv.ParseFloat(strs[0], 0)
 			if err != nil {
-				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.tp.Name(), req.Form.Get(key))
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.va.Type().Name(), req.Form.Get(key))
 				continue
 			}
 			node.va.SetFloat(f)
 		case reflect.Slice:
-			targetType := node.tp.Elem()
+			targetType := node.va.Type().Elem()
 			lens := len(strs)
 			values := reflect.MakeSlice(reflect.SliceOf(targetType), lens, lens)
 			switch targetType.Kind() {
@@ -370,7 +428,7 @@ func (c *controller) resolveUrlParameters() goweb.WebError {
 			}
 			node.va.Set(values)
 		default:
-			return goweb.NewWebError(500, "Unresolveable url parameter type `%s`", node.tp)
+			return goweb.NewWebError(500, "Unresolveable url parameter type `%s`", node.va.Type())
 		}
 	}
 	return nil
