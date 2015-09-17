@@ -86,7 +86,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	} else {
 		// Now, controll is ready, try to call action whith context.
 		// If action not found, err will be return with not nil.
-		rts, err = ctl.Call(req.Method, ctx)
+		rts, err = ctl.Call(ctx)
 		if err == nil {
 			// All things seem to be fine. if some thing bad happend in
 			// action, context.error will be defined. so check it.
@@ -133,7 +133,7 @@ ERROR_USER_REPORT:
 	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
 		// Now, we got a User Defined Error Controller fit err.Code(). try to call...
-		rts, _err = ctl.Call(req.Method, ctx)
+		rts, _err = ctl.Call(ctx)
 		if _err == nil {
 			// If nothing bad happend, render error page.
 			res.WriteHeader(err.Code())
@@ -157,7 +157,7 @@ DEFAULT_ERROR_USER_REPORT:
 	ctx.Request().URL.Path = "/error"
 	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
-		rts, _err = ctl.Call(req.Method, ctx)
+		rts, _err = ctl.Call(ctx)
 		if _err == nil {
 			res.WriteHeader(err.Code())
 			_err = render(rts, ctl)

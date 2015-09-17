@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -18,8 +17,9 @@ const (
 )
 
 type nodeType struct {
-	tp reflect.Type // reflect.type of target
-	id int          // field index
+	tp reflect.Type  // reflect.type of target
+	dv reflect.Value // default value for this type
+	id int           // field index
 }
 
 type nodeValue struct {
@@ -40,9 +40,10 @@ type ControllerStateful interface {
 }
 
 type controllerValue struct {
-	_parent     goweb.Controller
-	_selfValue  reflect.Value
-	_selfType   reflect.Type
+	_interface  goweb.Controller     // Real goweb.Controller
+	_parent     nodeValue            // All custom controller's parent is controllerValue
+	_selfValue  reflect.Value        //
+	_selfType   reflect.Type         //
 	_ctx        goweb.Context        // Realtime goweb.Context struct
 	_querys     map[string]nodeValue // query parameters
 	_standalone []nodeValue          // factory which need be injected after first initialized
@@ -51,6 +52,10 @@ type controllerValue struct {
 	_type       *controllerType      // Pointer to controllerType struct
 	_actions    map[string]nodeValue // methods wrap
 	_init       nodeValue            // Init() function's reflect.Value Pointer
+}
+
+func (c *controllerValue) Init() {
+
 }
 
 func (c *controllerValue) String() string {
@@ -72,13 +77,13 @@ func (c *controllerValue) Type() goweb.LifeType {
 	return c._type._type
 }
 
-func (c *controllerValue) Call(mtd string, ctx goweb.Context) ([]reflect.Value, goweb.WebError) {
+func (c *controllerValue) Call(ctx goweb.Context) ([]reflect.Value, goweb.WebError) {
 	c._ctx = ctx
-	act, exist := c._actions[strings.ToLower(mtd)]
+	act, exist := c._actions[strings.ToLower(ctx.Request().Method)]
 	if !exist {
 		act, exist = c._actions[""]
 		if !exist {
-			return nil, goweb.NewWebError(http.StatusMethodNotAllowed, "Action `%s` not found!", mtd)
+			return nil, goweb.NewWebError(http.StatusMethodNotAllowed, "Action `%s` not found!", ctx.Request().Method)
 		}
 	}
 	ctx_type := ctx.Request().Header.Get("Content-Type")
@@ -103,7 +108,7 @@ func (c *controllerValue) Call(mtd string, ctx goweb.Context) ([]reflect.Value, 
 type controllerType struct {
 	_selfValue  reflect.Value
 	_selfType   reflect.Type
-	_parent     goweb.Controller
+	_parent     nodeType            // All Controller's Father is controllerValue
 	_querys     map[string]nodeType // query parameters
 	_standalone []nodeType          // factory which need be injected after first initialized
 	_stateful   []nodeType          // factory which need be injected from session before called
@@ -111,13 +116,18 @@ type controllerType struct {
 	_type       goweb.LifeType      // standalone or stateless or stateful
 	_actions    map[string]nodeType // methods wrap
 	_init       nodeType            // Init() function's reflect.Value Pointer
+	_master     *controllerValue    // Master Value
 }
 
 func (c *controllerType) New() *controllerValue {
 	var ctl goweb.Controller = reflect.New(c._selfType).Interface().(goweb.Controller)
+	_selfValue := reflect.ValueOf(ctl)
+	for reflect.Ptr == _selfValue.Kind() {
+		_selfValue = _selfValue.Elem()
+	}
 	rt := &controllerValue{
-		_parent:     ctl,
-		_selfValue:  reflect.ValueOf(ctl).Elem(),
+		_interface:  ctl,
+		_selfValue:  _selfValue,
 		_selfType:   c._selfType,
 		_querys:     make(map[string]nodeValue, len(c._querys)),
 		_type:       c,
@@ -156,20 +166,31 @@ func (c *controllerType) New() *controllerValue {
 		id: c._init.id,
 		va: c._selfValue.Method(c._init.id),
 	}
+	// initialization parent
+	rt._parent = nodeValue{
+		id: c._parent.id,
+		va: c._selfValue.Field(c._parent.id),
+	}
+	rt._parent.va.Set(reflect.ValueOf(rt))
 	return rt
 }
-func newControlerType(ctli goweb.Controller, fac goweb.FactoryContainer) *controllerType {
+
+func newControllerType(ctli goweb.Controller, fac goweb.FactoryContainer) *controllerType {
+	rva := reflect.ValueOf(ctli)
+	for reflect.Ptr == rva.Kind() {
+		rva = rva.Elem()
+	}
+	rtp := reflect.TypeOf(ctli)
+	for reflect.Ptr == rtp.Kind() {
+		rtp = rtp.Elem()
+	}
 	var (
-		rtp reflect.Type    = reflect.TypeOf(ctli)
-		rva reflect.Value   = reflect.ValueOf(ctli)
 		ctl *controllerType = &controllerType{
 			_selfValue: rva,
-			_selfType:  reflect.TypeOf(ctli).Elem(),
+			_selfType:  rtp,
 			_querys:    make(map[string]nodeType),
 			_actions:   make(map[string]nodeType),
-			_parent:    ctli,
 		}
-		ctlVal reflect.Value = reflect.ValueOf(ctl)
 	)
 	for rva.Kind() == reflect.Ptr {
 		rva = rva.Elem()
@@ -185,18 +206,21 @@ func newControlerType(ctli goweb.Controller, fac goweb.FactoryContainer) *contro
 				switch fdva.Type().Name() {
 				case "ControllerStandalone":
 					ctl._type = (goweb.LifeTypeStandalone)
+					ctl._parent = nodeType{
+						id: i, // field index
+					}
 				case "ControllerStateful":
 					ctl._type = (goweb.LifeTypeStateful)
+					ctl._parent = nodeType{
+						id: i, // field index
+					}
 				case "ControllerStateless":
 					ctl._type = (goweb.LifeTypeStateless)
+					ctl._parent = nodeType{
+						id: i, // field index
+					}
 				default:
 					continue
-				}
-				switch {
-				case ctlVal.Type().AssignableTo(fdva.Type()):
-					fdva.Set(ctlVal)
-				default:
-					panic(fmt.Sprintf("interface %s can not be assignable by %s !", fdva.Type(), ctlVal.Type()))
 				}
 			}
 			continue
@@ -221,9 +245,10 @@ func newControlerType(ctli goweb.Controller, fac goweb.FactoryContainer) *contro
 		} else {
 			name := strings.ToLower(mtd.Name[ActionPrefixLen:])
 			ctl._actions[name] = nodeType{id: i, tp: mtd.Type}
-			goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctli.Type()])
+			goweb.Log.Printf("INIT goweb.Controller `%s` -> `%s` (%s)", rtp, name, goweb.LifeTypeName[ctl._type])
 		}
 	}
+	ctl._master = ctl.New()
 	return ctl
 }
 
@@ -344,7 +369,7 @@ func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes
 
 func (c *controllerValue) resolveJsonParameters() goweb.WebError {
 	de := json.NewDecoder(c._ctx.Request().Body)
-	err := de.Decode(c._parent)
+	err := de.Decode(c._interface)
 	if err != nil {
 		return goweb.NewWebError(http.StatusBadRequest, err.Error())
 	}

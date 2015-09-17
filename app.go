@@ -57,9 +57,9 @@ type Controller interface {
 	Context() Context
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() LifeType
-	// Call() by request url prefix, if success, []reflect.value contain the method
+	// Call() Controller Action by Context, if success, []reflect.value contain the method
 	// parameters out, else WebError will be set.
-	Call(mtd string, ctx Context) ([]reflect.Value, WebError)
+	Call(ctx Context) ([]reflect.Value, WebError)
 	// String()
 	String() string
 }
