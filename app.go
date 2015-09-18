@@ -38,12 +38,12 @@ type Context interface {
 
 // ControllerContainer is a container to store controllers
 type ControllerContainer interface {
-	// Register a new controller to container
+	// Register a new controller caller to container with its prefix.
 	// prefix is url prefix
-	Register(prefix string, ctl Controller)
+	Register(prefix string, caller Controller)
 	// Get controller by url prefix
 	// return nil if not found in container
-	Get(prefix string, ctx Context) (Controller, WebError)
+	Get(prefix string, ctx Context) (ControllerCallAble, WebError)
 }
 
 type Controller interface {
@@ -57,11 +57,19 @@ type Controller interface {
 	Context() Context
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() LifeType
+}
+
+type ControllerSchema interface {
+	// NewCallAble return a struct implement `ControllerCallAble`, used by router be invoked.
+	NewCallAble() ControllerCallAble
+	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
+	Type() LifeType
+}
+
+type ControllerCallAble interface {
 	// Call() Controller Action by Context, if success, []reflect.value contain the method
 	// parameters out, else WebError will be set.
 	Call(ctx Context) ([]reflect.Value, WebError)
-	// String()
-	String() string
 }
 
 type Factory interface{}

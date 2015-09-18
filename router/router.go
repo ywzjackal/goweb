@@ -23,9 +23,6 @@ var (
 	// DefaultActionName define the Action when Router can not find a Action
 	// fit the http request.
 	DefaultActionName = "Default"
-	//
-	// Never Mind
-	__gloabl_goweb_router = &router{}
 )
 
 // ContextGenerator is a function that create a goweb.Context instance by
@@ -69,7 +66,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// generator a context by http.request and http.response
 		ctx = r.ctxGetor(res, req)
 		// store
-		rts []reflect.Value
+//		rts []reflect.Value
 		// never mind
 		err goweb.WebError
 		// never mind
@@ -84,15 +81,15 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		// by user defined controller.
 		goto ERROR_USER_REPORT
 	} else {
-		// Now, controll is ready, try to call action whith context.
+		// Now, controller is ready, try to call action whith context.
 		// If action not found, err will be return with not nil.
-		rts, err = ctl.Call(ctx)
+//		rts, err = ctl.Call(ctx)
 		if err == nil {
 			// All things seem to be fine. if some thing bad happend in
 			// action, context.error will be defined. so check it.
 			if ctx.Error() == nil {
 				// finialize,  render page to user.
-				err = render(rts, ctl)
+//				err = render(rts, ctl)
 			} else {
 				// or get the error.
 				err = ctx.Error()
@@ -133,11 +130,11 @@ ERROR_USER_REPORT:
 	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
 		// Now, we got a User Defined Error Controller fit err.Code(). try to call...
-		rts, _err = ctl.Call(ctx)
+//		rts, _err = ctl.Call(ctx)
 		if _err == nil {
 			// If nothing bad happend, render error page.
 			res.WriteHeader(err.Code())
-			_err = render(rts, ctl)
+//			_err = render(rts, ctl)
 			if _err != nil {
 				err.Append(_err.Code(), _err.ErrorAll())
 			}
@@ -157,10 +154,10 @@ DEFAULT_ERROR_USER_REPORT:
 	ctx.Request().URL.Path = "/error"
 	ctl, _err = r.controllers.Get(ctx.Request().URL.Path, ctx)
 	if _err == nil && ctl != nil {
-		rts, _err = ctl.Call(ctx)
+//		rts, _err = ctl.Call(ctx)
 		if _err == nil {
 			res.WriteHeader(err.Code())
-			_err = render(rts, ctl)
+//			_err = render(rts, ctl)
 			if _err != nil {
 				err = _err
 				goto DEFAULT_ERROR_REPORT

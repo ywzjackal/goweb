@@ -33,14 +33,16 @@ func (c *context) SetError(goweb.WebError) {
 // controllerContainer is buildin default controller container
 type controllerContainer struct {
 	goweb.ControllerContainer
-	ctls     map[string]*controllerType
 	factorys goweb.FactoryContainer
+	ctls     map[string]goweb.ControllerSchema   // store all controller scheme
+	sds      map[string]goweb.ControllerCallAble // store standalone controllers
 }
 
 func NewControllerContainer(f goweb.FactoryContainer) goweb.ControllerContainer {
 	c := &controllerContainer{
 		factorys: f,
-		ctls:     make(map[string]*controllerType),
+		ctls:     make(map[string]goweb.ControllerSchema),
+		sds:      make(map[string]goweb.ControllerCallAble),
 	}
 	return c
 }
@@ -50,36 +52,41 @@ func (c *controllerContainer) Register(prefix string, ctl goweb.Controller) {
 	if exist {
 		panic("URL Prefix:" + prefix + " register duplicated")
 	}
-	c.ctls[prefix] = newControllerType(ctl, c.factorys)
+	sch := &schema{}
+	sch.Init(ctl)
+	c.ctls[prefix] = sch
+	if ctl.Type() == goweb.LifeTypeStandalone {
+		c.sds[prefix] = sch.NewCallAble()
+	}
 }
 
-func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.Controller, goweb.WebError) {
+func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.ControllerCallAble, goweb.WebError) {
 	var (
-		ctl *controllerType = nil
-		ok  bool            = false
+		sch goweb.ControllerSchema = nil
+		ok  bool                   = false
 	)
-	ctl, ok = c.ctls[prefix]
-	if !ok || ctl == nil {
+	sch, ok = c.ctls[prefix]
+	if !ok || sch == nil {
 		return nil, goweb.NewWebError(404, "goweb.Controller `%s` not found!", prefix)
 	}
-	switch ctl._type {
+	switch sch.Type() {
 	case goweb.LifeTypeStandalone: //no need break;
-		return ctl._master._interface, nil
+		return c.sds[prefix], nil
 	case goweb.LifeTypeStateless:
 		//		ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
 		//		initController(ctl, ctx)
-		return ctl.New()._interface, nil
+		return sch.NewCallAble(), nil
 	case goweb.LifeTypeStateful:
 		mem := ctx.Session().MemMap()
 		itfs, ok := mem["__ctl_"+prefix]
 		if !ok {
 			//			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
 			//			initController(ctl, ctx)
-			cv := ctl.New()._interface
+			cv := sch.NewCallAble()
 			mem["__ctl_"+prefix] = cv
 			return cv, nil
 		} else {
-			cv, ok := itfs.(goweb.Controller)
+			cv, ok := itfs.(goweb.ControllerCallAble)
 			if !ok {
 				return nil, goweb.NewWebError(500, "Fail to convert session stateful interface to controller!")
 			}
@@ -94,7 +101,7 @@ func isInterfaceController(itfs interface{}) goweb.WebError {
 	var (
 		t = reflect.TypeOf(itfs)
 	)
-	_, ok := itfs.(*controllerType)
+	_, ok := itfs.(*schema)
 	if !ok {
 		return goweb.NewWebError(500, "`%s` is not based on goweb.goweb.Controller!", t)
 	}
