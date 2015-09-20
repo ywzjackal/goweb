@@ -22,7 +22,7 @@ import (
 var (
 	once       sync.Once
 	serverAddr string
-	httpserver *httptest.Server
+	httpServer *httptest.Server
 )
 
 type FactoryCounter struct {
@@ -40,10 +40,17 @@ type ControllerCounter struct {
 	Count int
 }
 
-func (f *ControllerCounter) ActionGet() string {
+func (f *ControllerCounter) ActionGet() {
 	num := f.Count + f.Fc.Current()
 	f.Context().ResponseWriter().Write([]byte(fmt.Sprintf("%d", num)))
-	return ""
+}
+
+func (f ControllerCounter) ActionPost() {
+
+}
+
+func (f ControllerCounter) ActionDelete() {
+
 }
 
 func startWsServer() {
@@ -65,8 +72,8 @@ func startWsServer() {
 		count: 2,
 	})
 	router.ControllerContainer().Register("/counter", &ControllerCounter{})
-	httpserver = httptest.NewServer(nil)
-	serverAddr = httpserver.Listener.Addr().String()
+	httpServer = httptest.NewServer(nil)
+	serverAddr = httpServer.Listener.Addr().String()
 	log.Println("goweb server listen on", serverAddr)
 	http.Handle("/", router)
 	//	serverAddr = "localhost:8080"

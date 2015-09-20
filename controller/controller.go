@@ -32,8 +32,21 @@ func (c *controller) Init() {
 
 }
 
+func (c *controller) SetContext(ctx goweb.Context) {
+	c._ctx = ctx
+}
+
 func (c *controller) Context() goweb.Context {
 	return c._ctx
+}
+
+func (c *controller) Before() {
+}
+
+func (c *controller) After() {
+}
+
+func (c *controller) Destroy() {
 }
 
 type ControllerStandalone struct {
@@ -58,23 +71,6 @@ type ControllerStateful struct {
 
 func (c *ControllerStateful) Type() goweb.LifeType {
 	return goweb.LifeTypeStateful
-}
-
-func isActionMethod(method *reflect.Method) goweb.WebError {
-	if !strings.HasPrefix(method.Name, ActionPrefix) {
-		return goweb.NewWebError(500, "func %s doesn't have prefix '%s'", method.Name, ActionPrefix)
-	}
-	if method.Type.NumIn() != 1 {
-		err := goweb.NewWebError(500, "Action func %s need function without parameters in! got %d", method.Name, method.Type.NumIn()-1)
-		goweb.Err.Print(err.Error())
-		return err
-	}
-	if method.Type.NumOut() == 0 || method.Type.Out(0).Kind() != reflect.String {
-		err := goweb.NewWebError(500, "Action func %s need function with at least on parameters out, the first parameters out must be string to specify which view do you need,like 'json','txt','html' etc.", method.Name)
-		goweb.Err.Print(err.Error())
-		return err
-	}
-	return nil
 }
 
 func isTypeLookupAble(rt reflect.Type) goweb.WebError {
@@ -102,9 +98,9 @@ func factoryType(t reflect.Type) goweb.LifeType {
 	return goweb.LifeTypeError
 }
 
-func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes []nodeValue) goweb.WebError {
+func resolveInjections(container goweb.FactoryContainer, ctx goweb.Context, nodes []nodeValue) goweb.WebError {
 	for _, node := range nodes {
-		v, err := factorys.Lookup(node.va.Type(), ctx)
+		v, err := container.Lookup(node.va.Type(), ctx)
 		if err != nil {
 			return err.Append(500, "Fail to inject `%s`", node.va.Type())
 		}
@@ -119,8 +115,8 @@ func resolveInjections(factorys goweb.FactoryContainer, ctx goweb.Context, nodes
 	return nil
 }
 
-func (c *ctlCallable) resolveJsonParameters() goweb.WebError {
-	de := json.NewDecoder(c._ctx.Request().Body)
+func (c *ctlCallable) resolveJsonParameters(ctx goweb.Context) goweb.WebError {
+	de := json.NewDecoder(ctx.Request().Body)
 	err := de.Decode(c._interface)
 	if err != nil {
 		return goweb.NewWebError(http.StatusBadRequest, err.Error())
@@ -128,8 +124,8 @@ func (c *ctlCallable) resolveJsonParameters() goweb.WebError {
 	return nil
 }
 
-func (c *ctlCallable) resolveUrlParameters() goweb.WebError {
-	req := c._ctx.Request()
+func (c *ctlCallable) resolveUrlParameters(ctx goweb.Context) goweb.WebError {
+	req := ctx.Request()
 	if err := req.ParseForm(); err != nil {
 		return goweb.NewWebError(500, "Fail to ParseForm with path:%s,%s", req.URL.String(), err.Error())
 	}
@@ -218,18 +214,4 @@ func reflectType(rt reflect.Type) string {
 		rt = rt.Elem()
 	}
 	return s + rt.Kind().String()
-}
-
-func elemOfVal(val reflect.Value) reflect.Value {
-	for val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	return val
-}
-
-func elemOfTyp(typ reflect.Type) reflect.Type {
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-	return typ
 }

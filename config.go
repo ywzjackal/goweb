@@ -21,9 +21,15 @@ const (
 	LifeTypeStateful
 )
 
-var LifeTypeName = []string{
-	LifeTypeError:      "LifeTypeError",
-	LifeTypeStateless:  "LifeTypeStateless",
-	LifeTypeStandalone: "LifeTypeStandalone",
-	LifeTypeStateful:   "LifeTypeStateful",
+func (l LifeType) String() string {
+	switch l {
+	case LifeTypeStandalone:
+		return "LifeTypeStandalone"
+	case LifeTypeStateless:
+		return "LifeTypeStateless"
+	case LifeTypeStateful:
+		return "LifeTypeStateful"
+	default:
+		return "LifeTypeError"
+	}
 }

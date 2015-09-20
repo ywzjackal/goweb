@@ -3,7 +3,6 @@ package controller
 import (
 	"github.com/ywzjackal/goweb"
 	"net/http"
-	"reflect"
 )
 
 type context struct {
@@ -73,44 +72,24 @@ func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.Contr
 	case goweb.LifeTypeStandalone: //no need break;
 		return c.sds[prefix], nil
 	case goweb.LifeTypeStateless:
-		//		ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
-		//		initController(ctl, ctx)
 		return sch.NewCallAble(), nil
 	case goweb.LifeTypeStateful:
 		mem := ctx.Session().MemMap()
-		itfs, ok := mem["__ctl_"+prefix]
+		i, ok := mem["__ctl_" + prefix]
 		if !ok {
-			//			ctl = reflect.New(reflect.TypeOf(ctl).Elem()).Interface().(goweb.Controller)
-			//			initController(ctl, ctx)
 			cv := sch.NewCallAble()
 			mem["__ctl_"+prefix] = cv
 			return cv, nil
-		} else {
-			cv, ok := itfs.(goweb.ControllerCallAble)
-			if !ok {
-				return nil, goweb.NewWebError(500, "Fail to convert session stateful interface to controller!")
-			}
-			return cv, nil
 		}
+		cv, ok := i.(goweb.ControllerCallAble)
+		if !ok {
+			return nil, goweb.NewWebError(500, "Fail to convert session stateful interface to controller!")
+		}
+		return cv, nil
 	default:
 		return nil, goweb.NewWebError(500, "goweb.Controller Life Status Undefined!")
 	}
 }
-
-func isInterfaceController(itfs interface{}) goweb.WebError {
-	var (
-		t = reflect.TypeOf(itfs)
-	)
-	_, ok := itfs.(*schema)
-	if !ok {
-		return goweb.NewWebError(500, "`%s` is not based on goweb.goweb.Controller!", t)
-	}
-	if t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct {
-		return nil
-	}
-	return goweb.NewWebError(500, "`%s` is not a pointer of struct!", reflectType(t))
-}
-
 // ParseBool returns the boolean value represented by the string.
 // It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
 // Any other value returns an error.

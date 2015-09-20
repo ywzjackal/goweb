@@ -53,10 +53,18 @@ type Controller interface {
 	//   if Controller is Stateless,  called when Request initialization;
 	//   if Controller is Statefull,  called at first use in session;
 	Init()
-	// Context() return current http context
-	Context() Context
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() LifeType
+	// SetContext() set current context before invoke actions methods
+	SetContext(Context)
+	// Context() return current http context
+	Context() Context
+	// Before() will be called when new request arrived before invoke action method.
+	Before()
+	// After() will be called when new request arrived after invoke action method.
+	After()
+	// Destroy Will be called when controller will never be used
+	Destroy()
 }
 
 type ControllerSchema interface {
@@ -67,12 +75,33 @@ type ControllerSchema interface {
 }
 
 type ControllerCallAble interface {
-	// Call() Controller Action by Context, if success, []reflect.value contain the method
-	// parameters out, else WebError will be set.
-	Call(ctx Context) ([]reflect.Value, WebError)
+	// Call() Controller Action by Context
+	Call(ctx Context) WebError
 }
 
-type Factory interface{}
+type Life interface {
+	Init()
+	Destroy()
+}
+
+type InjectNode struct {
+	Type  reflect.Type
+	Value reflect.Value
+}
+
+type InjectAble interface {
+	FullName() string                //
+	Type() LifeType                 //
+	ReflectType() reflect.Type      //
+	ReflectValue() reflect.Value    //
+	FieldsStandalone() []InjectNode //
+	FieldsStateful() []InjectNode   //
+	FieldsStateless() []InjectNode  //
+}
+
+type Factory interface {
+	Type() LifeType
+}
 
 // FactoryContainer is the container interface of factorys
 type FactoryContainer interface {
@@ -103,6 +132,8 @@ type FactoryContainer interface {
 	// 中，以供以后的使用。
 	// 对于无状态工厂，Lookup始终返回一个刚被新创建的实例。
 	Lookup(rt reflect.Type, context Context) (reflect.Value, WebError)
+	//
+	LookupStandalone(typ reflect.Type) (reflect.Value, WebError)
 }
 
 // RouterInterface
@@ -110,14 +141,6 @@ type Router interface {
 	http.Handler
 	// return interface of controller container
 	ControllerContainer() ControllerContainer
-}
-
-// View is the top of view component's interface, all custom view component need
-// implament from this, and realize method Render(Controller, ...interface{}) WebError
-//
-// View 是视图的顶级接口组件，所有的自定义视图组件必须实现此接口
-type View interface {
-	Render(Controller, ...interface{}) WebError
 }
 
 // Storage interface
