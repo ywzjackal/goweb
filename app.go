@@ -52,7 +52,7 @@ type Controller interface {
 	//   if Controller is Standalone, called when Framework initialization;
 	//   if Controller is Stateless,  called when Request initialization;
 	//   if Controller is Statefull,  called at first use in session;
-	Init()
+	//	Init()
 	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
 	Type() LifeType
 	// SetContext() set current context before invoke actions methods
@@ -60,11 +60,11 @@ type Controller interface {
 	// Context() return current http context
 	Context() Context
 	// Before() will be called when new request arrived before invoke action method.
-	Before()
+	//	Before()
 	// After() will be called when new request arrived after invoke action method.
-	After()
+	//	After()
 	// Destroy Will be called when controller will never be used
-	Destroy()
+	//	Destroy()
 }
 
 type ControllerSchema interface {
@@ -79,18 +79,22 @@ type ControllerCallAble interface {
 	Call(ctx Context) WebError
 }
 
-type Life interface {
+type InitAble interface {
 	Init()
+}
+
+type DestroyAble interface {
 	Destroy()
 }
 
 type InjectNode struct {
-	Type  reflect.Type
-	Value reflect.Value
+	Name  string        // full struct name with package path
+	Value reflect.Value //
 }
 
 type InjectAble interface {
-	FullName() string                //
+	FullName() string               //
+	Alias() string                  // alias
 	Type() LifeType                 //
 	ReflectType() reflect.Type      //
 	ReflectValue() reflect.Value    //
@@ -103,6 +107,11 @@ type Factory interface {
 	Type() LifeType
 }
 
+type InjectGetterSetter interface {
+	Get(string) InjectAble
+	Set(string, InjectAble)
+}
+
 // FactoryContainer is the container interface of factorys
 type FactoryContainer interface {
 	// Init after create new instanse.
@@ -111,29 +120,15 @@ type FactoryContainer interface {
 	// 		fc.Init() //！！Must be called after created！！
 	// 初始化，当工厂容器被创建后，必须马上使用本函数初始化
 	Init() WebError
-	// RegisterFactory will register a new factory for Lookup later.
-	// 注册工厂，以供以后查询（Lookup）使用
-	Register(Factory) WebError
-	// Lookup factory by type from this container or depends and return it.
-	// Lookup also enject Ptr or Interface fields which is Exported and
-	// Setable for the factory be looking up.
-	// if something wrong happend, the error will be set.
-	// for Standalone Factory, Lookup will return the global factory which
-	// can be assignable to the type of rt.
-	// for Stateful Factory, Lookup will find in session, if it doesn't exist
-	// in session, Lookup will create new one and add to session for later.
-	// for Stateless Factory, Lookup will allways create new instance by rt,
-	// and never store in container or session.
-	// 根据工厂的类型（reflect.type）从容器或depends中查找与之相配的值并返回。
-	// 如果工厂中有导出并且可以被赋值的指针（Prt）或接口（Interface）域（Field），
-	// Lookup 自动注册这些域。
-	// 对于独立工厂，Lookup将从全局唯一的实例返回，
-	// 对于有状态工厂，Lookup将先从会话中查找，如果没有将创建一个新的工厂实例并添加到会话
-	// 中，以供以后的使用。
-	// 对于无状态工厂，Lookup始终返回一个刚被新创建的实例。
-	Lookup(rt reflect.Type, context Context) (reflect.Value, WebError)
+	// Register an injectable factory with its alias to container， set alias to "" if you no need it
+	// 注册工厂并以指定的名字命名, 如果想使用默认名菜，将名称的参数设置为“”即可
+	Register(Factory, string)
 	//
-	LookupStandalone(typ reflect.Type) (reflect.Value, WebError)
+	LookupStandalone(string) (InjectAble, WebError)
+	//
+	LookupStateless(string) (InjectAble, WebError)
+	//
+	LookupStateful(string, InjectGetterSetter) (InjectAble, WebError)
 }
 
 // RouterInterface

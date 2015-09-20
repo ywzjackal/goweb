@@ -1,7 +1,6 @@
 package factory
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/ywzjackal/goweb"
@@ -30,50 +29,34 @@ func (f *FactoryTest1) Init() {
 
 func Test_Factory(t *testing.T) {
 	fc := NewFactoryContainer()
-	if err := fc.Register(&FactoryTest1{
-		Num: 1,
-	}); err != nil {
-		t.Error(err.ErrorAll())
-		return
-	}
-	if err := fc.Register(&FactoryTest1{
-		Num: 9,
-	}); err == nil {
-		t.Error("Need return error when duplicate register factory!")
-		return
-	}
-	v, err := fc.Lookup(reflect.TypeOf(&FactoryTest1{}), nil)
+	fc.Register(&FactoryBase{}, "")
+	fc.Register(&FactoryTest1{Num: 1}, "a")
+	v, err := fc.LookupStandalone("a")
 	if err != nil {
-		t.Error("Need look up factory, but it did not!", err.ErrorAll())
+		t.Error("fail to look up factory!", err.ErrorAll())
 		return
 	}
-	if !v.IsValid() {
-		t.Error("Need look up a valid factory!")
+	if !v.ReflectValue().IsValid() {
+		t.Error("fail to look up factory valid!")
 		return
 	}
 }
 
 func Test_Factory2(t *testing.T) {
 	fc := NewFactoryContainer()
-
-	v, err := fc.Lookup(reflect.TypeOf(&FactoryTest1{}), nil)
+	fc.Register(&FactoryBase{}, "")
+	fc.Register(&FactoryTest1{Num: 2}, "a")
+	a, err := fc.LookupStandalone("a")
 	if err != nil {
 		t.Error("Need look up factory, but it did not!", err.ErrorAll())
 		return
 	}
-	if !v.IsValid() {
+	if !a.ReflectValue().IsValid() {
 		t.Error("Need look up a valid factory!")
 		return
 	}
-	target := &FactoryTest1{
-		Num: 3,
-	}
-	_v := reflect.ValueOf(target)
-	for _v.Kind() == reflect.Ptr {
-		_v = _v.Elem()
-	}
-	_v.Set(v.Elem())
-	if target.Num != 2 {
-		t.Error("Look up fail!")
+	f := a.ReflectValue().Interface().(*FactoryTest1)
+	if f.Num != 2 {
+		t.Error("standalone factory got not as register value, exept 2, but got ", f.Num)
 	}
 }

@@ -23,8 +23,12 @@ var (
 //
 // 独立状态工厂接口，仅有一个实例存在与系统中，所有注入共享一个实例，所以必要时应该考虑线程
 // 安全。
-type FactoryStandalone interface {
-	goweb.Factory
+type FactoryStandalone struct {
+
+}
+
+func (f *FactoryStandalone) Type() goweb.LifeType {
+	return goweb.LifeTypeStandalone
 }
 
 // FactoryStateful is stateful for user in session. each session has the one
@@ -33,16 +37,24 @@ type FactoryStandalone interface {
 //
 // 有状态工厂接口，面向用户的有状态工厂，每个会话（SESSION）包含一个与众不同的实例，不共
 // 享，当会话（SESSION）超时或摧毁时包含的有状态的工厂也将被自动摧毁
-type FactoryStateful interface {
-	goweb.Factory
+type FactoryStateful struct {
+
+}
+
+func (f *FactoryStateful) Type() goweb.LifeType {
+	return goweb.LifeTypeStateful
 }
 
 // FactoryStateless is stateless for user in session. Enjection will allways
 // create a new factory instance for using.
 //
 // 无状态工厂接口，面向用户无状态，每次注入（Enject）将创建一个新的实例以供调用。
-type FactoryStateless interface {
-	goweb.Factory
+type FactoryStateless struct {
+
+}
+
+func (f *FactoryStateless) Type() goweb.LifeType {
+	return goweb.LifeTypeStateless
 }
 
 func factoryType(t reflect.Type) goweb.LifeType {

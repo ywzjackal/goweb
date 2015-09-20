@@ -15,7 +15,7 @@ type ViewHtml struct {
 
 func NewViewHtml(dirPath, delimsLeft, delimsRight string, funcMap template.FuncMap) ViewHtml {
 	return ViewHtml{
-		template.Must(template.New("").Funcs(funcMap).Delims(delimsLeft, delimsRight).ParseGlob(dirPath + "/*")),
+		template.Must(template.New("").Funcs(funcMap).Delims(delimsLeft, delimsRight).ParseGlob(dirPath)),
 	}
 }
 

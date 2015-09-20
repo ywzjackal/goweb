@@ -20,7 +20,7 @@ type WebError interface {
 	FuncName() string
 	Children() []WebError
 	CallStack() []WebErrorStackNode
-	Append(code int, msg string, args ...interface{}) WebError
+	Append(msg string, args ...interface{}) WebError
 }
 
 type gowebError struct {
@@ -77,16 +77,9 @@ func (e *gowebError) Error() string {
 }
 
 func (e *gowebError) ErrorAll() string {
-	var str string
+	var str string = "\n"
 	for _, ce := range e.Children() {
-		short := ce.File()
-		for i := len(short) - 1; i > 0; i-- {
-			if short[i] == '/' {
-				short = short[i+1:]
-				break
-			}
-		}
-		str += fmt.Sprintf("%s:%d %s\n", short, ce.Line(), ce.Error())
+		str += fmt.Sprintf(" - %s:%d %s\n", ce.File(), ce.Line(), ce.Error())
 	}
 	return str
 }
@@ -99,8 +92,8 @@ func (e *gowebError) CallStack() []WebErrorStackNode {
 	return e.stack
 }
 
-func (e *gowebError) Append(code int, msg string, args ...interface{}) WebError {
-	err := newWebError(false, code, fmt.Sprintf(msg, args...))
+func (e *gowebError) Append(msg string, args ...interface{}) WebError {
+	err := newWebError(false, e.code, fmt.Sprintf(msg, args...))
 	e.children = append(e.children, err)
 	return e
 }

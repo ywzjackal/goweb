@@ -16,101 +16,65 @@ const (
 	InitName        = "Init"
 )
 
-var (
-	factoryTypesByName = map[string]goweb.LifeType{
-		"FactoryStandalone": goweb.LifeTypeStandalone,
-		"FactoryStateful":   goweb.LifeTypeStateful,
-		"FactoryStateless":  goweb.LifeTypeStateless,
-	}
-)
-
-type controller struct {
+type Controller struct {
 	_ctx goweb.Context
 }
 
-func (c *controller) Init() {
-
-}
-
-func (c *controller) SetContext(ctx goweb.Context) {
+func (c *Controller) SetContext(ctx goweb.Context) {
 	c._ctx = ctx
 }
 
-func (c *controller) Context() goweb.Context {
+func (c *Controller) Context() goweb.Context {
 	return c._ctx
 }
 
-func (c *controller) Before() {
-}
+type Standalone struct{}
 
-func (c *controller) After() {
-}
-
-func (c *controller) Destroy() {
-}
-
-type ControllerStandalone struct {
-	controller
-}
-
-func (c *ControllerStandalone) Type() goweb.LifeType {
+func (c *Standalone) Type() goweb.LifeType {
 	return goweb.LifeTypeStandalone
 }
 
-type ControllerStateless struct {
-	controller
-}
+type Stateless struct{}
 
-func (c *ControllerStateless) Type() goweb.LifeType {
+func (c *Stateless) Type() goweb.LifeType {
 	return goweb.LifeTypeStateless
 }
 
-type ControllerStateful struct {
-	controller
-}
+type Stateful struct{}
 
-func (c *ControllerStateful) Type() goweb.LifeType {
+func (c *Stateful) Type() goweb.LifeType {
 	return goweb.LifeTypeStateful
 }
 
-func isTypeLookupAble(rt reflect.Type) goweb.WebError {
-	if rt.Kind() == reflect.Interface {
-		return nil
-	}
-	if rt.Kind() == reflect.Ptr && rt.Elem().Kind() == reflect.Struct {
-		return nil
-	}
-	return goweb.NewWebError(500, "`%s(%s)` is not a interface or *struct", rt, reflectType(rt))
-}
-
-func factoryType(t reflect.Type) goweb.LifeType {
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		return goweb.LifeTypeError
-	}
-	for name, ft := range factoryTypesByName {
-		if _, b := t.FieldByName(name); b {
-			return ft
-		}
-	}
-	return goweb.LifeTypeError
-}
-
-func resolveInjections(container goweb.FactoryContainer, ctx goweb.Context, nodes []nodeValue) goweb.WebError {
+func injectionStandalone(container goweb.FactoryContainer, nodes []goweb.InjectNode) goweb.WebError {
 	for _, node := range nodes {
-		v, err := container.Lookup(node.va.Type(), ctx)
+		v, err := container.LookupStandalone(node.Name)
 		if err != nil {
-			return err.Append(500, "Fail to inject `%s`", node.va.Type())
+			return err.Append("look up (%s) fail", node.Name)
 		}
-		if !v.IsValid() {
-			return goweb.NewWebError(500, "inject invalid value to `%s`", node.va)
+		node.Value.Set(v.ReflectValue())
+	}
+	return nil
+}
+
+func injectionStateless(container goweb.FactoryContainer, nodes []goweb.InjectNode) goweb.WebError {
+	for _, node := range nodes {
+		v, err := container.LookupStateless(node.Name)
+		if err != nil {
+			return err.Append("look up fail")
 		}
-		if v.Kind() != reflect.Ptr {
-			return goweb.NewWebError(500, "inject invalid type of %s, need Ptr", v.Kind())
+		node.Value.Set(v.ReflectValue())
+	}
+	return nil
+}
+
+func injectionStateful(container goweb.FactoryContainer, nodes []goweb.InjectNode, state goweb.InjectGetterSetter) goweb.WebError {
+	for _, node := range nodes {
+		v, err := container.LookupStateful(node.Name, state)
+		if err != nil {
+			return err.Append("look up(%s) fail", node.Name)
 		}
-		node.va.Set(v)
+		node.Value.Set(v.ReflectValue())
 	}
 	return nil
 }
@@ -138,43 +102,43 @@ func (c *ctlCallable) resolveUrlParameters(ctx goweb.Context) goweb.WebError {
 		if !ok {
 			continue
 		}
-		switch node.va.Kind() {
+		switch node.Kind() {
 		case reflect.String:
 			if len(strs) == 0 {
-				node.va.SetString("")
+				node.SetString("")
 				break
 			}
-			node.va.SetString(strs[0])
+			node.SetString(strs[0])
 		case reflect.Bool:
 			if len(strs) == 0 {
-				node.va.SetBool(false)
+				node.SetBool(false)
 				break
 			}
-			node.va.SetBool(ParseBool(strs[0]))
+			node.SetBool(ParseBool(strs[0]))
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			if len(strs) == 0 {
-				node.va.SetInt(0)
+				node.SetInt(0)
 				break
 			}
 			num, err := strconv.ParseInt(strs[0], 10, 0)
 			if err != nil {
-				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.va.Type().Name(), req.Form.Get(key))
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(int) can not set by '%s'", node.Type().Name(), req.Form.Get(key))
 				continue
 			}
-			node.va.SetInt(num)
+			node.SetInt(num)
 		case reflect.Float32, reflect.Float64:
 			if len(strs) == 0 {
-				node.va.SetFloat(0.0)
+				node.SetFloat(0.0)
 				break
 			}
 			f, err := strconv.ParseFloat(strs[0], 0)
 			if err != nil {
-				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.va.Type().Name(), req.Form.Get(key))
+				goweb.Err.Printf("Fail to convent parameters!\r\nField `%s`(float) can not set by '%s'", node.Type().Name(), req.Form.Get(key))
 				continue
 			}
-			node.va.SetFloat(f)
+			node.SetFloat(f)
 		case reflect.Slice:
-			targetType := node.va.Type().Elem()
+			targetType := node.Type().Elem()
 			lens := len(strs)
 			values := reflect.MakeSlice(reflect.SliceOf(targetType), lens, lens)
 			switch targetType.Kind() {
@@ -199,9 +163,9 @@ func (c *ctlCallable) resolveUrlParameters(ctx goweb.Context) goweb.WebError {
 					v.SetBool(boolValue)
 				}
 			}
-			node.va.Set(values)
+			node.Set(values)
 		default:
-			return goweb.NewWebError(500, "Unresolveable url parameter type `%s`", node.va.Type())
+			return goweb.NewWebError(500, "Unresolveable url parameter type `%s`", node.Type())
 		}
 	}
 	return nil

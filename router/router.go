@@ -69,7 +69,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if err = caller.Call(ctx); err != nil {
 		// Action not found! this is second error when routing request,
 		// so append this error to top error and let context know.
-		err.Append(http.StatusMethodNotAllowed, "Fail to call `%s`->`%s`", caller, req.Method)
+		err.Append("Fail to call `%s`->`%s`", caller, req.Method)
 		ctx.SetError(err)
 		goto ERROR_USER_REPORT
 	}
@@ -101,13 +101,13 @@ ERROR_USER_REPORT:
 caller, _err = r.controllers.Get(fmt.Sprintf("/%d", err.Code()), ctx)
 	if _err == nil && caller != nil {
 		// Now, we got a User Defined Error Controller fit err.Code(). try to call...
-		//		rts, _err = ctl.Call(ctx)
+		_err = caller.Call(ctx)
 		if _err == nil {
 			// If nothing bad happend, render error page.
 			res.WriteHeader(err.Code())
 			//			_err = render(rts, ctl)
 			if _err != nil {
-				err.Append(_err.Code(), _err.ErrorAll())
+				err.Append(_err.ErrorAll())
 			}
 		} else {
 			// Else render error page by DEFAULT_ERROR_USER_REPORT
@@ -124,7 +124,7 @@ DEFAULT_ERROR_USER_REPORT:
 	// Now, Try to find a Controller by name "error" and report error.
 caller, _err = r.controllers.Get("/error", ctx)
 	if _err == nil && caller != nil {
-		//		rts, _err = ctl.Call(ctx)
+		_err = caller.Call(ctx)
 		if _err == nil {
 			res.WriteHeader(err.Code())
 			//			_err = render(rts, ctl)
@@ -143,31 +143,21 @@ caller, _err = r.controllers.Get("/error", ctx)
 DEFAULT_ERROR_REPORT:
 	// User not defined ERROR_USER_REPORT Controller or DEFAULT_ERROR_USER_REPORT
 	// Controller. so we render an Error Report Basicily
-emg := ""
 	res.WriteHeader(err.Code())
 
 	res.Write([]byte("<!DOCTYPE html>\r\n<html><head><title>HTTP-Internal Server Error</title></head>"))
 	res.Write([]byte(fmt.Sprintf("<body><h1>%d : %s</h1><hr/>", err.Code(), http.StatusText(err.Code()))))
 
-	emg += "Fail to routing : " + ctx.Request().URL.Path + "\n"
-	emg += fmt.Sprintf("%d : %s\n", err.Code(), http.StatusText(err.Code()))
-
+	goweb.Err.Printf("Fail to routing:%s, %d:%s", ctx.Request().URL.Path, err.Code(), http.StatusText(err.Code()))
 	res.Write([]byte(fmt.Sprintf("<h3>Error stack:</h3><ul>")))
-	emg += "Error stack:\n"
-
+	goweb.Err.Printf("Error stack:\n %s", err.ErrorAll())
 	for _, _err := range err.Children() {
 		res.Write([]byte(fmt.Sprintf("<li>%s</li>", _err.ErrorAll())))
-		emg += " - " + _err.ErrorAll() + "\n"
 	}
-
 	res.Write([]byte(fmt.Sprintf("</ul><h3>Call stack:</h3><ul>")))
-	emg += "Call stack:\n"
-
 	for _, _nod := range err.CallStack() {
 		res.Write([]byte(fmt.Sprintf("<li>%s:%d</li>", _nod.Func, _nod.Line)))
-		emg += fmt.Sprintf(" - %s %s:%d \n", _nod.Func, _nod.File, _nod.Line)
 	}
 	res.Write([]byte("</ul><hr><h4>Power by GoWeb github.com/ywzjackal/goweb </h4></body></html>"))
-	goweb.Err.Println(emg)
 	goto FINISH
 }
