@@ -66,7 +66,7 @@ func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.Contr
 	)
 	sch, ok = c.ctls[prefix]
 	if !ok || sch == nil {
-		return nil, goweb.NewWebError(404, "goweb.Controller `%s` not found!", prefix)
+		return nil, goweb.NewWebError(404, "goweb.Controller `%s` not found in %v!", prefix, c.ctls)
 	}
 	switch sch.Type() {
 	case goweb.LifeTypeStandalone: //no need break;
