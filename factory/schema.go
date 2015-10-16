@@ -89,6 +89,9 @@ func newSchema(factory goweb.Factory, alias string, container goweb.FactoryConta
 				continue
 			}
 		case reflect.Interface:
+			if tn == "-" {
+				continue
+			}
 			if tn == "" {
 				goweb.Err.Printf("`%s.%s` no inject tag to determine wich factory will be used",
 					f.Type.Name(), f.Name)
