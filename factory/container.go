@@ -39,6 +39,13 @@ func (f *factoryContainer) Register(factory goweb.Factory, alias string) {
 	f.scmas[name] = sch
 	if factory.Type() == goweb.LifeTypeStandalone {
 		f.stand[name] = sch.NewInjectAble(factory)
+		factory, err := f.LookupStateless(name)
+		if err != nil {
+			panic(err)
+		}
+		if init, ok := factory.(goweb.InitAble); ok {
+			init.Init()
+		}
 	}
 	//
 	if alias != "" && alias != name {

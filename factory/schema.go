@@ -53,9 +53,6 @@ func (s *schema) NewInjectAble(factory goweb.Factory) goweb.InjectAble {
 		able.statl[i].Name = n.nm
 		able.statl[i].Value = nv.Elem().Field(n.id)
 	}
-	if init, ok := factory.(goweb.InitAble); ok {
-		init.Init()
-	}
 	return able
 }
 
