@@ -27,7 +27,7 @@ type FactoryStandalone struct {
 
 }
 
-func (f *FactoryStandalone) Type() goweb.LifeType {
+func (f FactoryStandalone) Type() goweb.LifeType {
 	return goweb.LifeTypeStandalone
 }
 
@@ -41,7 +41,7 @@ type FactoryStateful struct {
 
 }
 
-func (f *FactoryStateful) Type() goweb.LifeType {
+func (f FactoryStateful) Type() goweb.LifeType {
 	return goweb.LifeTypeStateful
 }
 
@@ -53,7 +53,7 @@ type FactoryStateless struct {
 
 }
 
-func (f *FactoryStateless) Type() goweb.LifeType {
+func (f FactoryStateless) Type() goweb.LifeType {
 	return goweb.LifeTypeStateless
 }
 

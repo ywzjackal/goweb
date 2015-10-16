@@ -63,7 +63,7 @@ func (f *factoryContainer) LookupStandalone(name string) (goweb.InjectAble, gowe
 			}
 			s += "]"
 		}
-		return nil, goweb.NewWebError(http.StatusServiceUnavailable, "factory(\"" + name + "\") not found," + s)
+		return nil, goweb.NewWebError(http.StatusServiceUnavailable, "factory(\""+name+"\") not found,"+s)
 	}
 	if err := f.injectStandalone(able); err != nil {
 		return nil, err.Append("fail to inject standalone field")
@@ -108,12 +108,48 @@ func (f *factoryContainer) LookupStateful(name string, state goweb.InjectGetterS
 	return able, nil
 }
 
+func (f *factoryContainer) Lookup(alias string, state goweb.InjectGetterSetter) (goweb.Factory, goweb.WebError) {
+	sch, ok := f.scmas[alias]
+	if !ok {
+		return nil, goweb.NewWebError(http.StatusServiceUnavailable, "schema not found")
+	}
+	var able goweb.InjectAble
+	var err goweb.WebError
+	switch sch.Target.Type() {
+	case goweb.LifeTypeStandalone:
+		able, err = f.LookupStandalone(alias)
+		if err != nil {
+			return nil, err
+		}
+	case goweb.LifeTypeStateless:
+		able, err = f.LookupStateless(alias)
+		if err != nil {
+			return nil, err
+		}
+	case goweb.LifeTypeStateful:
+		if state == nil {
+			return nil, goweb.NewWebError(http.StatusInternalServerError, "can not lookup stateful factory without stateful container!")
+		}
+		able, err = f.LookupStateful(alias, state)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, goweb.NewWebError(http.StatusInternalServerError, "invalid factory type!")
+	}
+	fac, ok := able.ReflectValue().Interface().(goweb.Factory)
+	if !ok {
+		return nil, goweb.NewWebError(http.StatusInternalServerError, "can not convert '%s' to goweb.Factory", able.ReflectValue().Interface())
+	}
+	return fac, nil
+}
+
 func (f *factoryContainer) injectStandalone(able goweb.InjectAble) goweb.WebError {
 	nods := able.FieldsStandalone()
 	for _, n := range nods {
 		nv, err := f.LookupStandalone(n.Name)
 		if err != nil {
-			return err.Append("lookup (%s:%s) fail", n.Name, n.Value.Type().Elem().PkgPath() + "/" + n.Value.Type().Elem().Name())
+			return err.Append("lookup (%s:%s) fail", n.Name, n.Value.Type().Elem().PkgPath()+"/"+n.Value.Type().Elem().Name())
 		}
 		n.Value.Set(nv.ReflectValue())
 	}

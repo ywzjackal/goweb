@@ -129,6 +129,8 @@ type FactoryContainer interface {
 	LookupStateless(string) (InjectAble, WebError)
 	//
 	LookupStateful(string, InjectGetterSetter) (InjectAble, WebError)
+	//
+	Lookup(string, InjectGetterSetter) (Factory, WebError)
 }
 
 // RouterInterface
