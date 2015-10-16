@@ -28,7 +28,7 @@ func (f *factoryContainer) RegisterWithReflectType(typ reflect.Type, alias strin
 }
 
 func (f *factoryContainer) Register(factory goweb.Factory, alias string) {
-	name, sch := newSchema(factory, alias)
+	name, sch := newSchema(factory, alias, f)
 	if goweb.Debug {
 		goweb.Log.Printf("register `%s:%s` type:%s", name, alias, factory.Type())
 	}
@@ -39,12 +39,14 @@ func (f *factoryContainer) Register(factory goweb.Factory, alias string) {
 	f.scmas[name] = sch
 	if factory.Type() == goweb.LifeTypeStandalone {
 		f.stand[name] = sch.NewInjectAble(factory)
-		factory, err := f.LookupStateless(name)
+		factory, err := f.Lookup(name, nil)
 		if err != nil {
 			panic(err)
 		}
 		if init, ok := factory.(goweb.InitAble); ok {
 			init.Init()
+		} else {
+			goweb.Log.Printf("standalone factory `%s` is not goweb.InitAble", name)
 		}
 	}
 	//

@@ -56,7 +56,7 @@ func (s *schema) NewInjectAble(factory goweb.Factory) goweb.InjectAble {
 	return able
 }
 
-func newSchema(factory goweb.Factory, alias string) (string, schema) {
+func newSchema(factory goweb.Factory, alias string, container goweb.FactoryContainer) (string, schema) {
 	s := schema{
 		Target:      factory,
 		_tValue:     reflect.ValueOf(factory),
@@ -75,10 +75,18 @@ func newSchema(factory goweb.Factory, alias string) (string, schema) {
 		if !v.CanSet() {
 			continue
 		}
+		var tmpFac goweb.Factory
+		var ok bool
+		var err goweb.WebError
 		switch f.Type.Kind() {
 		case reflect.Ptr:
 			if tn == "" {
 				tn = f.Type.Elem().PkgPath() + "/" + f.Type.Elem().Name()
+			}
+			tmpFac, ok = reflect.New(f.Type.Elem()).Interface().(goweb.Factory)
+			if !ok {
+				goweb.Err.Printf("`%s.%s` is not a type of factory!", s._tType.Elem().Name(), f.Name)
+				continue
 			}
 		case reflect.Interface:
 			if tn == "" {
@@ -86,12 +94,13 @@ func newSchema(factory goweb.Factory, alias string) (string, schema) {
 					f.Type.Name(), f.Name)
 				continue
 			}
+			tmpFac, err = container.LookupStateless(tn)
+			if err != nil {
+				goweb.Err.Printf("`%s.%s` can not determine factory's LifeType by tag %s",
+					f.Type.Name(), f.Name, tn)
+				continue
+			}
 		default:
-			continue
-		}
-		tmpFac, ok := reflect.New(f.Type.Elem()).Interface().(goweb.Factory)
-		if !ok {
-			goweb.Err.Printf("`%s.%s` is not a type of factory!", s._tType.Elem().Name(), f.Name)
 			continue
 		}
 		switch tmpFac.Type() {
