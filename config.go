@@ -9,7 +9,7 @@ var (
 	Debug = true
 )
 
-var Log = log.New(os.Stdout, "[GWLOG]", log.Ldate|log.Lmicroseconds|log.Llongfile)
+var Log = log.New(os.Stdout, "[GWLOG]", log.Ldate|log.Lmicroseconds|log.Lshortfile)
 var Err = log.New(os.Stderr, "[GWERR]", log.Ldate|log.Lmicroseconds|log.Llongfile)
 
 type LifeType int

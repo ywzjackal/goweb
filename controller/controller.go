@@ -52,7 +52,12 @@ func injectionStandalone(container goweb.FactoryContainer, nodes []goweb.InjectN
 		if err != nil {
 			return err.Append("look up (%s) fail", node.Name)
 		}
-		node.Value.Set(v.ReflectValue())
+		if v.ReflectValue().Type().AssignableTo(node.Value.Type()) {
+			node.Value.Set(v.ReflectValue())
+		} else {
+			return goweb.NewWebError(http.StatusInternalServerError,
+				"can not inject %s by %s with name %s", node.Value.Type(), v.ReflectValue().Type(), node.Name)
+		}
 	}
 	return nil
 }
@@ -63,7 +68,12 @@ func injectionStateless(container goweb.FactoryContainer, nodes []goweb.InjectNo
 		if err != nil {
 			return err.Append("look up fail")
 		}
-		node.Value.Set(v.ReflectValue())
+		if v.ReflectValue().Type().AssignableTo(node.Value.Type()) {
+			node.Value.Set(v.ReflectValue())
+		} else {
+			return goweb.NewWebError(http.StatusInternalServerError,
+				"can not inject %s by %s with name %s", node.Value.Type(), v.ReflectValue().Type(), node.Name)
+		}
 	}
 	return nil
 }
@@ -74,7 +84,12 @@ func injectionStateful(container goweb.FactoryContainer, nodes []goweb.InjectNod
 		if err != nil {
 			return err.Append("look up(%s) fail", node.Name)
 		}
-		node.Value.Set(v.ReflectValue())
+		if v.ReflectValue().Type().AssignableTo(node.Value.Type()) {
+			node.Value.Set(v.ReflectValue())
+		} else {
+			return goweb.NewWebError(http.StatusInternalServerError,
+				"can not inject %s by %s with name %s", node.Value.Type(), v.ReflectValue().Type(), node.Name)
+		}
 	}
 	return nil
 }

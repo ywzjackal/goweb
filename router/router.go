@@ -152,7 +152,7 @@ DEFAULT_ERROR_REPORT:
 	res.Write([]byte(fmt.Sprintf("<h3>Error stack:</h3><ul>")))
 	goweb.Err.Printf("Error stack:\n %s", err.ErrorAll())
 	for _, _err := range err.Children() {
-		res.Write([]byte(fmt.Sprintf("<li>%s</li>", _err.ErrorAll())))
+		res.Write([]byte(fmt.Sprintf("<li>%s</li>", _err.Error())))
 	}
 	res.Write([]byte(fmt.Sprintf("</ul><h3>Call stack:</h3><ul>")))
 	for _, _nod := range err.CallStack() {

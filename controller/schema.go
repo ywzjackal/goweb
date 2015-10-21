@@ -118,6 +118,9 @@ func (c *schema) initSubFields(value reflect.Value, index []int) {
 		if !fdva.CanSet() {
 			continue
 		}
+		if tagName == "-" {
+			continue
+		}
 		switch stfd.Type.Kind() {
 		case reflect.Int, reflect.String, reflect.Float32, reflect.Bool, reflect.Slice:
 			c._query[strings.ToLower(stfd.Name)] = fieldType{
@@ -134,19 +137,25 @@ func (c *schema) initSubFields(value reflect.Value, index []int) {
 			}
 			switch factory.Type() {
 			case goweb.LifeTypeStandalone:
+				id := make([]int, len(index), len(index) + 1)
+				copy(id, index)
 				c._standalone = append(c._standalone, fieldType{
 					name: tagName,
-					id:   append(index, i),
+					id:   append(id, i),
 				})
 			case goweb.LifeTypeStateful:
+				id := make([]int, len(index), len(index) + 1)
+				copy(id, index)
 				c._stateful = append(c._stateful, fieldType{
 					name: tagName,
-					id:   append(index, i),
+					id:   append(id, i),
 				})
 			case goweb.LifeTypeStateless:
+				id := make([]int, len(index), len(index) + 1)
+				copy(id, index)
 				c._stateless = append(c._stateless, fieldType{
 					name: tagName,
-					id:   append(index, i),
+					id:   append(id, i),
 				})
 			default:
 				panic(goweb.NewWebError(http.StatusServiceUnavailable, "factory `%s` type is not be specified", stfd.Type).ErrorAll())
@@ -163,7 +172,7 @@ func isActionMethod(method *reflect.Method) bool {
 	}
 	if method.Type.NumIn() != 1 {
 		if goweb.Debug {
-			goweb.Log.Printf("`%s` is not a action because number in is %d != 0", method.Name, method.Type.NumIn() - 1)
+			goweb.Log.Printf("`%s` is not a action because number in is %d != 0", method.Name, method.Type.NumIn()-1)
 		}
 		return false
 	}

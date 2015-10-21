@@ -6,12 +6,12 @@ import (
 	"net/http"
 )
 
-type ViewJson int
+type ViewJson struct{}
 
 func (v *ViewJson) Render(resp http.ResponseWriter, model interface{}) goweb.WebError {
 	var (
 		b   []byte = nil
-		err error = nil
+		err error  = nil
 	)
 	b, err = json.Marshal(model)
 	if err != nil {
@@ -26,10 +26,10 @@ func (v *ViewJson) Render(resp http.ResponseWriter, model interface{}) goweb.Web
 	return nil
 }
 
-func (v *ViewJson)RenderIndent(resp http.ResponseWriter, model interface{}) goweb.WebError {
+func (v *ViewJson) RenderIndent(resp http.ResponseWriter, model interface{}) goweb.WebError {
 	var (
 		b   []byte = nil
-		err error = nil
+		err error  = nil
 	)
 	b, err = json.MarshalIndent(model, "", " ")
 	if err != nil {
