@@ -12,7 +12,7 @@ type factoryContainer struct {
 	stand map[string]goweb.InjectAble
 }
 
-func NewFactoryContainer() goweb.FactoryContainer {
+func NewContainer() goweb.FactoryContainer {
 	return &factoryContainer{
 		scmas: make(map[string]schema),
 		stand: make(map[string]goweb.InjectAble),

@@ -75,8 +75,8 @@ func (f *ControllerCounterWithPreActionAndPostAction) AfterAction() {
 
 func startWsServer() {
 	memStorage := storage.NewStorageMemory()
-	factoryContainer := factory.NewFactoryContainer()
-	controllerContainer := NewControllerContainer(factoryContainer)
+	factoryContainer := factory.NewContainer()
+	controllerContainer := NewContainer(factoryContainer)
 	router := router.NewRouter(
 		controllerContainer,
 		func(res http.ResponseWriter, req *http.Request) goweb.Context {

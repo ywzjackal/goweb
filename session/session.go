@@ -9,7 +9,7 @@ import (
 	"github.com/ywzjackal/goweb"
 )
 
-var (
+const (
 	SessionIdTag   = "__sid__"
 	SessionTimeout = time.Minute * 30
 )

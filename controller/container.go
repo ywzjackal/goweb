@@ -37,7 +37,7 @@ type controllerContainer struct {
 	sds      map[string]goweb.ControllerCallAble // store standalone controllers
 }
 
-func NewControllerContainer(f goweb.FactoryContainer) goweb.ControllerContainer {
+func NewContainer(f goweb.FactoryContainer) goweb.ControllerContainer {
 	c := &controllerContainer{
 		factorys: f,
 		ctls:     make(map[string]goweb.ControllerSchema),

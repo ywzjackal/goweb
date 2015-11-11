@@ -28,7 +28,7 @@ func (f *FactoryTest1) Init() {
 }
 
 func Test_Factory(t *testing.T) {
-	fc := NewFactoryContainer()
+	fc := NewContainer()
 	fc.Register(&FactoryBase{}, "")
 	fc.Register(&FactoryTest1{Num: 1}, "a")
 	v, err := fc.LookupStandalone("a")
@@ -43,7 +43,7 @@ func Test_Factory(t *testing.T) {
 }
 
 func Test_Factory2(t *testing.T) {
-	fc := NewFactoryContainer()
+	fc := NewContainer()
 	fc.Register(&FactoryBase{}, "")
 	fc.Register(&FactoryTest1{Num: 2}, "a")
 	a, err := fc.LookupStandalone("a")
