@@ -29,8 +29,8 @@ GOWEB support inject factory(like EJB in J2EE) to controller, or inject factory 
 
 # Hello Word for Stateful, Stateless and Standalone
 
-Build and run code:
-
+* Build and run code:
+```
     package main
     import (
     	"github.com/ywzjackal/goweb"
@@ -89,14 +89,13 @@ Build and run code:
     		panic(er)
     	}
     }
-
+```
     
 * Open browser and type url "localhost:8080/?message=hello_word_from_goweb",will return: "message:hello_word_from_goweb,counter:0"
 and counter will increase when you refresh browser.
 * Restart browser and retype url above to see what happened with counter. yes, its standalone counter.
 * Change index type to Stateful Controller, rebuild and run :
-
-
+```
     ...
     type index struct {
     	controller.Controller
@@ -105,12 +104,11 @@ and counter will increase when you refresh browser.
     	Counter int
     }
     ...
-
+```
 * Refresh browser and the counter will increase too. but if you restart browser and reopen url, you will see counter increase from `0`
  not like Standalone Controller, a new Stateful Controller will be created when session begin.
 * Change index type to Stateless Controller, rebuild and run :
-
-
+```
     ...
     type index struct {
     	controller.Controller
@@ -119,7 +117,7 @@ and counter will increase when you refresh browser.
     	Counter int
     }
     ...
-    
+``` 
 
 * the counter will always be `0`, not increase. because Stateless Controller will always be created when request arrived.
 
