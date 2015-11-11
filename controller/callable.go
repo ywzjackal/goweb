@@ -7,13 +7,12 @@ import (
 	"strings"
 )
 
-
-type injectGetterSetter struct {
+type sessionInjectorsContainer struct {
 	goweb.Context
 	goweb.InjectGetterSetter
 }
 
-func (i *injectGetterSetter) Get(name string) goweb.InjectAble {
+func (i *sessionInjectorsContainer) Get(name string) goweb.InjectAble {
 	a, ok := i.Context.Session().MemMap()[name]
 	if !ok {
 		return nil
@@ -25,9 +24,10 @@ func (i *injectGetterSetter) Get(name string) goweb.InjectAble {
 	return able
 }
 
-func (i *injectGetterSetter) Set(name string, able goweb.InjectAble) {
+func (i *sessionInjectorsContainer) Set(name string, able goweb.InjectAble) {
 	i.Context.Session().MemMap()[name] = able
 }
+
 // ctl is a implement of goweb.Controller
 type ctlCallable struct {
 	_interface  goweb.Controller         // Real goweb.Controller
@@ -38,6 +38,8 @@ type ctlCallable struct {
 	_stateless  []goweb.InjectNode       // factory which need be injected always new before called
 	_actions    map[string]reflect.Value // methods wrap
 	_init       reflect.Value            // Init() function's reflect.Value Pointer
+	_preAction  goweb.ActionPreprocessor
+	_postAction goweb.ActionPostprocessor
 }
 
 func (c *ctlCallable) String() string {
@@ -68,10 +70,18 @@ func (c *ctlCallable) Call(ctx goweb.Context) goweb.WebError {
 	if err := injectionStateless(ctx.FactoryContainer(), c._stateless); err != nil {
 		return err.Append("Fail to resolve stateless injection for %s", c._selfValue.Type().Elem().Name())
 	}
-	if err := injectionStateful(ctx.FactoryContainer(), c._stateful, &injectGetterSetter{ctx, nil}); err != nil {
+	if err := injectionStateful(ctx.FactoryContainer(), c._stateful, &sessionInjectorsContainer{ctx, nil}); err != nil {
 		return err.Append("Fail to resolve stateful injection for %s", c._selfValue.Type().Elem().Name())
 	}
+	if c._preAction != nil {
+		if continue_call := c._preAction.BeforeAction(); !continue_call {
+			return c._interface.Context().Error()
+		}
+	}
 	act.Call(nil)
+	if c._postAction != nil {
+		c._postAction.AfterAction()
+	}
 	if ctx.Error() != nil {
 		return ctx.Error()
 	}

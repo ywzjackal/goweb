@@ -29,7 +29,7 @@ func (c *context) SetError(goweb.WebError) {
 
 }
 
-// controllerContainer is buildin default controller container
+// controllerContainer is builtin default controller container
 type controllerContainer struct {
 	goweb.ControllerContainer
 	factorys goweb.FactoryContainer
@@ -94,7 +94,6 @@ func (c *controllerContainer) Get(prefix string, ctx goweb.Context) (goweb.Contr
 // It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
 // Any other value returns an error.
 func ParseBool(str string) (value bool) {
-	goweb.Log.Print(str)
 	switch str {
 	case "1", "t", "T", "true", "TRUE", "True", "on", "ON", "On", "O", "o":
 		return true

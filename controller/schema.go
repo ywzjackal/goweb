@@ -23,6 +23,8 @@ type schema struct {
 	_actions    map[string]int       // methods wrap
 	_init       int                  // Init() function's reflect.Value Pointer
 	_lft        goweb.LifeType
+	_hasPreAction bool
+	_hasPostAction bool
 }
 
 func (c *schema) NewCallAble() goweb.ControllerCallAble {
@@ -64,6 +66,12 @@ func (c *schema) NewCallAble() goweb.ControllerCallAble {
 	for k, n := range c._actions {
 		rt._actions[k] = rt._selfValue.Method(n)
 	}
+	if c._hasPreAction {
+		rt._preAction = rt._interface.(goweb.ActionPreprocessor)
+	}
+	if c._hasPostAction {
+		rt._postAction = rt._interface.(goweb.ActionPostprocessor)
+	}
 	return rt
 }
 
@@ -103,6 +111,12 @@ func (c *schema) initActions() {
 			str += "[" + strings.ToUpper(k) + "] "
 		}
 		goweb.Log.Printf("init `%s` actions(%d) %s", rtp.Elem().Name(), len(c._actions), str)
+	}
+	if _, ok := c.Target.(goweb.ActionPreprocessor); ok {
+		c._hasPreAction = true
+	}
+	if _, ok := c.Target.(goweb.ActionPostprocessor); ok {
+		c._hasPostAction = true
 	}
 }
 

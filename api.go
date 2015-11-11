@@ -67,6 +67,18 @@ type Controller interface {
 	//	Destroy()
 }
 
+type ActionPreprocessor interface {
+	// BeforeAction() filter all request before action method
+	// return false will stop framework to continue call action method
+	// return true for normal
+	BeforeAction() bool
+}
+
+type ActionPostprocessor interface {
+	// AfterAction() will be called when action method finished.
+	AfterAction()
+}
+
 type ControllerSchema interface {
 	// NewCallAble return a struct implement `ControllerCallAble`, used by router be invoked.
 	NewCallAble() ControllerCallAble
