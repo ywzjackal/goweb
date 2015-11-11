@@ -7,23 +7,27 @@ import (
 	"strings"
 )
 
+const (
+	InjectTagName = "inject"
+)
+
 type fieldType struct {
 	name string // factory name
 	id   []int  // field index
 }
 
 type schema struct {
-	Target      goweb.Controller     // Target must be set before register to container
-	_tValue     reflect.Value        // target(user defined controller struct) reflect.Value
-	_tType      reflect.Type         // target(user defined controller struct) reflect.Type
-	_query      map[string]fieldType // query parameters
-	_standalone []fieldType          // factory which need be injected after first initialized
-	_stateful   []fieldType          // factory which need be injected from session before called
-	_stateless  []fieldType          // factory which need be injected always new before called
-	_actions    map[string]int       // methods wrap
-	_init       int                  // Init() function's reflect.Value Pointer
-	_lft        goweb.LifeType
-	_hasPreAction bool
+	Target         goweb.Controller     // Target must be set before register to container
+	_tValue        reflect.Value        // target(user defined controller struct) reflect.Value
+	_tType         reflect.Type         // target(user defined controller struct) reflect.Type
+	_query         map[string]fieldType // query parameters
+	_standalone    []fieldType          // factory which need be injected after first initialized
+	_stateful      []fieldType          // factory which need be injected from session before called
+	_stateless     []fieldType          // factory which need be injected always new before called
+	_actions       map[string]int       // methods wrap
+	_init          int                  // Init() function's reflect.Value Pointer
+	_lft           goweb.LifeType
+	_hasPreAction  bool
 	_hasPostAction bool
 }
 
@@ -75,7 +79,7 @@ func (c *schema) NewCallAble() goweb.ControllerCallAble {
 	return rt
 }
 
-func (c *schema) Init(ctl goweb.Controller) {
+func (c *schema) Init(ctl goweb.Controller, facs goweb.FactoryContainer) {
 	c.Target = ctl
 	rva := reflect.ValueOf(ctl)
 	rtp := reflect.TypeOf(ctl)
@@ -87,7 +91,7 @@ func (c *schema) Init(ctl goweb.Controller) {
 	for rva.Kind() == reflect.Ptr {
 		rva = rva.Elem()
 	}
-	c.initSubFields(c._tValue, []int{})
+	c.initSubFields(c._tValue, []int{}, facs)
 	c.initActions()
 }
 
@@ -120,7 +124,7 @@ func (c *schema) initActions() {
 	}
 }
 
-func (c *schema) initSubFields(value reflect.Value, index []int) {
+func (c *schema) initSubFields(value reflect.Value, index []int, facs goweb.FactoryContainer) {
 	for reflect.Ptr == value.Kind() {
 		value = value.Elem()
 	}
@@ -128,54 +132,54 @@ func (c *schema) initSubFields(value reflect.Value, index []int) {
 	for i := 0; i < count; i++ {
 		stfd := value.Type().Field(i) // struct field
 		fdva := value.Field(i)        // field value
-		tagName := stfd.Tag.Get("inject")
+		tagName := stfd.Tag.Get(InjectTagName)
 		if !fdva.CanSet() {
 			continue
 		}
 		if tagName == "-" {
 			continue
 		}
-		switch stfd.Type.Kind() {
+		switch kind := stfd.Type.Kind(); kind {
 		case reflect.Int, reflect.String, reflect.Float32, reflect.Bool, reflect.Slice:
 			c._query[strings.ToLower(stfd.Name)] = fieldType{
 				name: stfd.Type.PkgPath() + stfd.Type.Name(),
 				id:   append(index, i),
 			}
-		case reflect.Ptr:
+		case reflect.Ptr, reflect.Interface:
 			if tagName == "" {
-				tagName = stfd.Type.Elem().PkgPath() + "/" + stfd.Type.Elem().Name()
+				if reflect.Ptr == kind {
+					tagName = stfd.Type.Elem().PkgPath() + "/" + stfd.Type.Elem().Name()
+				} else {
+					tagName = stfd.Type.PkgPath() + "/" + stfd.Type.Name()
+				}
 			}
-			factory, ok := reflect.New(stfd.Type.Elem()).Interface().(goweb.Factory)
-			if !ok {
-				continue
-			}
-			switch factory.Type() {
+			switch facs.LookupType(tagName) {
 			case goweb.LifeTypeStandalone:
-				id := make([]int, len(index), len(index) + 1)
+				id := make([]int, len(index), len(index)+1)
 				copy(id, index)
 				c._standalone = append(c._standalone, fieldType{
 					name: tagName,
 					id:   append(id, i),
 				})
 			case goweb.LifeTypeStateful:
-				id := make([]int, len(index), len(index) + 1)
+				id := make([]int, len(index), len(index)+1)
 				copy(id, index)
 				c._stateful = append(c._stateful, fieldType{
 					name: tagName,
 					id:   append(id, i),
 				})
 			case goweb.LifeTypeStateless:
-				id := make([]int, len(index), len(index) + 1)
+				id := make([]int, len(index), len(index)+1)
 				copy(id, index)
 				c._stateless = append(c._stateless, fieldType{
 					name: tagName,
 					id:   append(id, i),
 				})
 			default:
-				panic(goweb.NewWebError(http.StatusServiceUnavailable, "factory `%s` type is not be specified", stfd.Type).ErrorAll())
+				panic(goweb.NewWebError(http.StatusServiceUnavailable, "factory `%s` type can not be specified by alias `%s`", stfd.Type, tagName).ErrorAll())
 			}
 		case reflect.Struct:
-			c.initSubFields(fdva, append(index, i))
+			c.initSubFields(fdva, append(index, i), facs)
 		}
 	}
 }

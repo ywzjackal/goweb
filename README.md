@@ -128,3 +128,5 @@ how to generate an context.
 * See more example from <https://github.com/ywzjackal/goweb_example> /src/goweb/example/helloword/controller/..
 
 #Hello Word for Injection
+
+* See example from <https://github.com/ywzjackal/goweb_example> /src/goweb/example/injection/controller/..

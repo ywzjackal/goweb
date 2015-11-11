@@ -52,7 +52,7 @@ func (c *controllerContainer) Register(prefix string, ctl goweb.Controller) {
 		panic("URL Prefix:" + prefix + " register duplicated")
 	}
 	sch := &schema{}
-	sch.Init(ctl)
+	sch.Init(ctl, c.factorys)
 	c.ctls[prefix] = sch
 	if ctl.Type() == goweb.LifeTypeStandalone {
 		c.sds[prefix] = sch.NewCallAble()

@@ -39,15 +39,6 @@ func (f *factoryContainer) Register(factory goweb.Factory, alias string) {
 	f.scmas[name] = sch
 	if factory.Type() == goweb.LifeTypeStandalone {
 		f.stand[name] = sch.NewInjectAble(factory)
-		factory, err := f.Lookup(name, nil)
-		if err != nil {
-			panic(err)
-		}
-		if init, ok := factory.(goweb.InitAble); ok {
-			init.Init()
-		} else {
-			goweb.Log.Printf("standalone factory `%s` is not goweb.InitAble", name)
-		}
 	}
 	//
 	if alias != "" && alias != name {
@@ -151,6 +142,14 @@ func (f *factoryContainer) Lookup(alias string, state goweb.InjectGetterSetter) 
 		return nil, goweb.NewWebError(http.StatusInternalServerError, "can not convert '%s' to goweb.Factory", able.ReflectValue().Interface())
 	}
 	return fac, nil
+}
+
+func (f *factoryContainer) LookupType(alias string) goweb.LifeType {
+	sch, ok := f.scmas[alias]
+	if !ok {
+		return goweb.LifeTypeError
+	}
+	return sch.Target.Type()
 }
 
 func (f *factoryContainer) injectStandalone(able goweb.InjectAble) goweb.WebError {

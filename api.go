@@ -143,6 +143,8 @@ type FactoryContainer interface {
 	LookupStateful(string, InjectGetterSetter) (InjectAble, WebError)
 	//
 	Lookup(string, InjectGetterSetter) (Factory, WebError)
+	//
+	LookupType(string) LifeType
 }
 
 // RouterInterface
