@@ -29,11 +29,9 @@ GOWEB support inject factory(like EJB in J2EE) to controller, or inject factory 
 
 # Hello Word for Stateful, Stateless and Standalone
 
-* Build and run code:
-
+Build and run code:
 
     package main
-    
     import (
     	"github.com/ywzjackal/goweb"
     	"github.com/ywzjackal/goweb/context"
@@ -45,9 +43,7 @@ GOWEB support inject factory(like EJB in J2EE) to controller, or inject factory 
     	"net/http"
     	"fmt"
     )
-    
     //...Setup basic configuration begin...
-    
     var (
     	FactoryContainer    = factory.NewContainer()
     	ControllerContainer = controller.NewContainer(FactoryContainer)
@@ -57,7 +53,6 @@ GOWEB support inject factory(like EJB in J2EE) to controller, or inject factory 
     		contextGenerator,
     	)
     )
-    
     // ContextGenerator is an function that return an instance of goweb.Context
     func contextGenerator(res http.ResponseWriter, req *http.Request) goweb.Context {
     	return context.NewContext(
@@ -70,30 +65,23 @@ GOWEB support inject factory(like EJB in J2EE) to controller, or inject factory 
     			storage.NewStorageMemory()),
     	)
     }
-    
     //```Setup basic configuration finish```
-    
     //...Setup Hello Word Controller begin...
-    
     type index struct {
     	controller.Controller
     	controller.Standalone
     	Message string
     	Counter int
     }
-    
     func (i *index) Action() {
     	msg := fmt.Sprintf("message:%s, counter:%d", i.Message, i.Counter)
     	i.Context().ResponseWriter().Write([]byte(msg))
     	i.Counter++
     }
-    
     func init() {
     	ControllerContainer.Register("/", &index{})
     }
-    
     //```Setup Hello Word Controller finish```
-    
     func main() {
     	http.Handle("/", Router)
     	er := http.ListenAndServe(":8080", nil)
@@ -131,6 +119,8 @@ and counter will increase when you refresh browser.
     	Counter int
     }
     ...
+    
+
 * the counter will always be `0`, not increase. because Stateless Controller will always be created when request arrived.
 
 #####Note: 
