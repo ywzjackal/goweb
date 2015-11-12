@@ -113,6 +113,7 @@ type InjectAble interface {
 	FieldsStandalone() []InjectNode //
 	FieldsStateful() []InjectNode   //
 	FieldsStateless() []InjectNode  //
+	Target() Factory
 }
 
 type Factory interface {

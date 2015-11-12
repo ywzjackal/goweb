@@ -22,6 +22,7 @@ type schema struct {
 	_stateless  []nodeType    // factory which need be injected always new before called
 	_name       string        // package+struct full name
 	_alias      string        // alias
+	_canInit    bool
 }
 
 func (s *schema) NewInjectAble(factory goweb.Factory) goweb.InjectAble {
@@ -33,7 +34,7 @@ func (s *schema) NewInjectAble(factory goweb.Factory) goweb.InjectAble {
 		factory = nv.Interface().(goweb.Factory)
 	}
 	able := &injectAble{
-		paren: factory,
+		targe: factory,
 		fType: s._tType,
 		fValu: nv,
 		stata: make([]goweb.InjectNode, len(s._standalone), len(s._standalone)),
@@ -52,9 +53,6 @@ func (s *schema) NewInjectAble(factory goweb.Factory) goweb.InjectAble {
 	for i, n := range s._stateless {
 		able.statl[i].Name = n.nm
 		able.statl[i].Value = nv.Elem().Field(n.id)
-	}
-	if init, ok := factory.(goweb.InitAble); ok {
-		init.Init()
 	}
 	return able
 }
@@ -129,6 +127,9 @@ func newSchema(factory goweb.Factory, alias string, container goweb.FactoryConta
 			goweb.Err.Printf("`%s.Type()` return not a known value : %d", f.Type.Elem().Name(), tmpFac.Type())
 			continue
 		}
+	}
+	if _, ok := factory.(goweb.InitAble); ok {
+		s._canInit = true
 	}
 	return s._name, s
 }

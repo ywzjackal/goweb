@@ -38,7 +38,14 @@ func (f *factoryContainer) Register(factory goweb.Factory, alias string) {
 	}
 	f.scmas[name] = sch
 	if factory.Type() == goweb.LifeTypeStandalone {
-		f.stand[name] = sch.NewInjectAble(factory)
+		able := sch.NewInjectAble(factory)
+		if err := f.injectStandalone(able); err != nil {
+			panic(err)
+		}
+		if sch._canInit {
+			able.Target().(goweb.InitAble).Init()
+		}
+		f.stand[name] = able
 	}
 	//
 	if alias != "" && alias != name {
@@ -83,6 +90,9 @@ func (f *factoryContainer) LookupStateless(name string) (goweb.InjectAble, goweb
 	if err := f.injectStateless(able); err != nil {
 		return nil, err.Append("fail to inject stateless field")
 	}
+	if sch._canInit {
+		able.Target().(goweb.InitAble).Init()
+	}
 	return able, nil
 }
 
@@ -95,7 +105,6 @@ func (f *factoryContainer) LookupStateful(name string, state goweb.InjectGetterS
 		return nil, err.Append("first initialization failed")
 	}
 	state.Set(name, able)
-
 	if err := f.injectStandalone(able); err != nil {
 		return nil, err.Append("fail to inject standalone field")
 	}

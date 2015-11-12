@@ -6,7 +6,7 @@ import (
 )
 
 type injectAble struct {
-	paren goweb.Factory
+	targe goweb.Factory
 	fType reflect.Type
 	fValu reflect.Value
 	stata []goweb.InjectNode
@@ -17,12 +17,13 @@ type injectAble struct {
 }
 
 func (i *injectAble) Type() goweb.LifeType {
-	return i.paren.Type()
+	return i.targe.Type()
 }
-func (i *injectAble) FullName() string { return i.fulnm }
-func (i *injectAble) Alias() string { return i.alias }
-func (i *injectAble) ReflectType() reflect.Type { return i.fType }
-func (i *injectAble) ReflectValue() reflect.Value { return i.fValu }
+func (i *injectAble) FullName() string                     { return i.fulnm }
+func (i *injectAble) Alias() string                        { return i.alias }
+func (i *injectAble) ReflectType() reflect.Type            { return i.fType }
+func (i *injectAble) ReflectValue() reflect.Value          { return i.fValu }
 func (i *injectAble) FieldsStandalone() []goweb.InjectNode { return i.stata }
-func (i *injectAble) FieldsStateful() []goweb.InjectNode { return i.statf }
-func (i *injectAble) FieldsStateless() []goweb.InjectNode { return i.statl }
+func (i *injectAble) FieldsStateful() []goweb.InjectNode   { return i.statf }
+func (i *injectAble) FieldsStateless() []goweb.InjectNode  { return i.statl }
+func (i *injectAble) Target() goweb.Factory                { return i.targe }
