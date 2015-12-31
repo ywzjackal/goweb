@@ -17,6 +17,8 @@ import (
 	"github.com/ywzjackal/goweb/router"
 	"github.com/ywzjackal/goweb/session"
 	"github.com/ywzjackal/goweb/storage"
+	"math/rand"
+	"time"
 )
 
 var (
@@ -161,4 +163,44 @@ func Test_ControllerPrePost(t *testing.T) {
 			num += 2
 		}
 	}
+}
+
+func Test_ControllerDataRace(t *testing.T) {
+	once.Do(startWsServer)
+	wg := sync.WaitGroup{}
+	wg.Add(10000)
+	begin := time.Now()
+	for i := 0; i < 10000; i++ {
+		go func() {
+			defer wg.Done()
+			num := int64(rand.Int())
+			url := "http://" + serverAddr + "/counter?count=" + fmt.Sprintf("%d", num)
+			t.Log("Get:", url)
+			res, err := http.Get(url)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			content, err := ioutil.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			n, err := strconv.ParseInt(string(content), 10, 0)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if n != num + 2 {
+				t.Error(fmt.Errorf("Content Error!%d", n))
+			} else {
+				num += 1
+			}
+		}()
+	}
+	wg.Wait()
+
+	esplace := time.Since(begin)
+	t.Logf("race useage %s", esplace)
 }

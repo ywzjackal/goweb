@@ -48,12 +48,12 @@ func (r *router) ControllerContainer() goweb.ControllerContainer {
 // Router Core
 func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var (
-		err goweb.WebError
-		_err goweb.WebError
-		caller goweb.ControllerCallAble
-		begin = time.Now()                    // time of http request arrived.
+		err       goweb.WebError
+		_err      goweb.WebError
+		caller    goweb.ControllerCallAble
+		begin     = time.Now()                    // time of http request arrived.
 		urlPrefix = strings.ToLower(req.URL.Path) // url of http request
-		ctx = r.ctxGetor(res, req)          // generator a context by http.request and http.response
+		ctx       = r.ctxGetor(res, req)          // generator a context by http.request and http.response
 	)
 	// get controller by urlPrefix
 	caller, err = r.controllers.Get(urlPrefix, ctx)
@@ -98,7 +98,7 @@ ERROR_USER_REPORT:
 	// For example:
 	// if user defined a controller with name "404", and err.Code() == 404,
 	// router will redirect this request to Controller of 404.
-caller, _err = r.controllers.Get(fmt.Sprintf("/%d", err.Code()), ctx)
+	caller, _err = r.controllers.Get(fmt.Sprintf("/%d", err.Code()), ctx)
 	if _err == nil && caller != nil {
 		// Now, we got a User Defined Error Controller fit err.Code(). try to call...
 		_err = caller.Call(ctx)
@@ -122,7 +122,7 @@ caller, _err = r.controllers.Get(fmt.Sprintf("/%d", err.Code()), ctx)
 
 DEFAULT_ERROR_USER_REPORT:
 	// Now, Try to find a Controller by name "error" and report error.
-caller, _err = r.controllers.Get("/error", ctx)
+	caller, _err = r.controllers.Get("/error", ctx)
 	if _err == nil && caller != nil {
 		_err = caller.Call(ctx)
 		if _err == nil {
