@@ -150,7 +150,8 @@ func (c *schema) initSubFields(value reflect.Value, index []int, facs goweb.Fact
 				if reflect.Ptr == kind {
 					tagName = stfd.Type.Elem().PkgPath() + "/" + stfd.Type.Elem().Name()
 				} else {
-					tagName = stfd.Type.PkgPath() + "/" + stfd.Type.Name()
+					// inject interface field must be set tag `inject:"...alias or name..."
+					break
 				}
 			}
 			switch facs.LookupType(tagName) {

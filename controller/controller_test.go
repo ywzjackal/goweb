@@ -104,7 +104,7 @@ func Test_Controller(t *testing.T) {
 		num (int64) = 1
 	)
 	once.Do(startWsServer)
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 10; i++ {
 		url := "http://" + serverAddr + "/counter?count=" + fmt.Sprintf("%d", num)
 		t.Log("Get:", url)
 		res, err := http.Get(url)

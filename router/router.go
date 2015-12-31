@@ -87,7 +87,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 FINISH:
 	// if debug is enabled, print elapsed time of routing this request
 	if goweb.Debug {
-		goweb.Log.Printf("%s: %s %d %dus", req.Method, req.URL.Path, 200, time.Now().Sub(begin).Nanoseconds()/1000)
+		goweb.Log.Printf("%s: %s %d %s", req.Method, req.URL.Path, 200, time.Since(begin))
 	}
 	return
 

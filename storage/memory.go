@@ -1,10 +1,10 @@
 package storage
 
 import (
-	"sync"
 	"time"
 
 	"github.com/ywzjackal/goweb"
+	"sync"
 )
 
 var (
@@ -12,75 +12,67 @@ var (
 )
 
 type storageValueWrap struct {
-	mutex sync.Mutex
-	Value interface{}
-	timer *time.Timer
+	value interface{}
+	last  time.Time
 	life  time.Duration
 }
 
-func (s *storageValueWrap) Lock() {
-	s.mutex.Lock()
+func (s *storageValueWrap)IsExpired() bool {
+	return s.life < time.Since(s.last)
 }
 
-func (s *storageValueWrap) Unlock() {
-	s.mutex.Unlock()
+func (s *storageValueWrap)Refresh() {
+	s.last = time.Now()
 }
 
 type storageMemory struct {
 	goweb.Storage
-	storage map[string]*storageValueWrap
+	sync.Mutex
+	storage map[string]storageValueWrap
 }
 
 func NewStorageMemory() goweb.Storage {
 	return &storageMemory{
-		storage: make(map[string]*storageValueWrap),
+		storage: make(map[string]storageValueWrap),
 	}
 }
 
 func (s *storageMemory) Get(key string) interface{} {
+	s.Lock()
+	defer s.Unlock()
 	storageValue, ok := s.storage[key]
 	if !ok {
 		return nil
 	}
-	storageValue.Lock()
-	defer storageValue.Unlock()
-	storageValue.timer.Reset(storageValue.life)
-	return storageValue.Value
+	if(storageValue.IsExpired()){
+		s.Remove(key)
+		return nil
+	}
+	storageValue.Refresh()
+	return storageValue.value
 }
 
 func (s *storageMemory) Set(key string, value interface{}) {
-	if s.storage == nil {
-		s.storage = make(map[string]*storageValueWrap)
-	}
 	s.SetWithLife(key, value, StorageDefaultLife)
 }
 
 func (s *storageMemory) SetWithLife(key string, value interface{}, life time.Duration) {
-	if s.storage == nil {
-		s.storage = make(map[string]*storageValueWrap)
-	}
+	s.Lock()
+	defer s.Unlock()
 	_, ok := s.storage[key]
 	if ok {
 		s.Remove(key)
 	}
-	s.storage[key] = &storageValueWrap{
-		Value: value,
-		timer: time.AfterFunc(StorageDefaultLife, func() {
-			s.Remove(key)
-		}),
-		life: life,
+	s.storage[key] = storageValueWrap{
+		value: value,
+		last:  time.Now(),
+		life:  life,
 	}
 }
 
 func (s *storageMemory) Remove(key string) {
-	if s.storage == nil {
-		s.storage = make(map[string]*storageValueWrap)
-	}
-	storageValue, ok := s.storage[key]
+	_, ok := s.storage[key]
 	if ok {
-		storageValue.Lock()
-		defer storageValue.Unlock()
-		storageValue.timer.Stop()
 		delete(s.storage, key)
 	}
 }

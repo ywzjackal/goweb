@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Session
+// Session interface for browser
 type Session interface {
 	// Id() return session's id
 	Id() string
@@ -20,7 +20,7 @@ type Session interface {
 	MemMap() map[interface{}]interface{}
 }
 
-// Context
+// Context interface for http request to response
 type Context interface {
 	// Request() return pointer of http.Request of http request
 	Request() *http.Request
@@ -36,7 +36,7 @@ type Context interface {
 	SetError(WebError)
 }
 
-// ControllerContainer is a container to store controllers
+// ControllerContainer is a container of controllers
 type ControllerContainer interface {
 	// Register a new controller caller to container with its prefix.
 	// prefix is url prefix
@@ -47,24 +47,12 @@ type ControllerContainer interface {
 }
 
 type Controller interface {
-	// Init() Will be called :
-	//
-	//   if Controller is Standalone, called when Framework initialization;
-	//   if Controller is Stateless,  called when Request initialization;
-	//   if Controller is Statefull,  called at first use in session;
-	//	Init()
-	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
+	// Type() return one of FactoryTypeStandalone/FactoryTypeStateless/FactoryTypeStateful
 	Type() LifeType
 	// SetContext() set current context before invoke actions methods
 	SetContext(Context)
 	// Context() return current http context
 	Context() Context
-	// Before() will be called when new request arrived before invoke action method.
-	//	Before()
-	// After() will be called when new request arrived after invoke action method.
-	//	After()
-	// Destroy Will be called when controller will never be used
-	//	Destroy()
 }
 
 type ActionPreprocessor interface {
@@ -82,7 +70,7 @@ type ActionPostprocessor interface {
 type ControllerSchema interface {
 	// NewCallAble return a struct implement `ControllerCallAble`, used by router be invoked.
 	NewCallAble() ControllerCallAble
-	// Type() return one of FactoryTypeStandalone/FactoryTypeStatless/FactoryTypeStatful
+	// Type() return one of FactoryTypeStandalone/FactoryTypeStateless/FactoryTypeStateful
 	Type() LifeType
 }
 
@@ -106,7 +94,7 @@ type InjectNode struct {
 
 type InjectAble interface {
 	FullName() string               //
-	Alias() string                  // alias
+	Alias() string                  //
 	Type() LifeType                 //
 	ReflectType() reflect.Type      //
 	ReflectValue() reflect.Value    //
@@ -125,15 +113,15 @@ type InjectGetterSetter interface {
 	Set(string, InjectAble)
 }
 
-// FactoryContainer is the container interface of factorys
+// FactoryContainer is the container of factories
 type FactoryContainer interface {
-	// Init after create new instanse.
+	// Init after create new instance.
 	// notice:
 	// 		fc := &FactoryContainerStruct{}
 	// 		fc.Init() //！！Must be called after created！！
 	// 初始化，当工厂容器被创建后，必须马上使用本函数初始化
 	Init() WebError
-	// Register an injectable factory with its alias to container， set alias to "" if you no need it
+	// Register an injectable factory with its alias to container， set alias to "" for ignore.
 	// 注册工厂并以指定的名字命名, 如果想使用默认名菜，将名称的参数设置为“”即可
 	Register(Factory, string)
 	//
@@ -151,7 +139,7 @@ type FactoryContainer interface {
 // RouterInterface
 type Router interface {
 	http.Handler
-	// return interface of controller container
+	// ControllerContainer() return interface of controller container used by this router
 	ControllerContainer() ControllerContainer
 }
 
@@ -163,8 +151,7 @@ type Storage interface {
 	// Set() element(interface{}) with it's key,
 	// and data will removed after the default duration from last query
 	Set(string, interface{})
-	// Set() element(interface{}) with life.
-	// data will be removed after the duration from last query
+	// SetWithLife() set data with deadline.
 	SetWithLife(string, interface{}, time.Duration)
 	// Remove() element before deadline.
 	Remove(string)
